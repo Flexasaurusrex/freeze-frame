@@ -327,9 +327,12 @@ async def get_video_info(url: str) -> Optional[dict]:
                 "yt-dlp",
                 "--dump-json",
                 "--no-download",
+                "--no-check-certificates",  # Bypass SSL issues
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",  # Spoof user agent
+                "--extractor-args", "youtube:player_client=android",  # Use Android client (more reliable)
                 url,
             ],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=60  # Increased timeout
         )
         if result.returncode == 0:
             data = json.loads(result.stdout)
@@ -354,9 +357,12 @@ async def download_video(url: str, output_path: str):
             "--merge-output-format", "mp4",
             "-o", output_path,
             "--no-playlist",
+            "--no-check-certificates",
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "--extractor-args", "youtube:player_client=android",
             url,
         ],
-        capture_output=True, text=True, timeout=300
+        capture_output=True, text=True, timeout=600  # Increased timeout for downloads
     )
     if result.returncode != 0:
         raise Exception(f"yt-dlp failed: {result.stderr[:200]}")
