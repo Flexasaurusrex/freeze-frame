@@ -574,6 +574,7 @@
 // ════════════════════════════════════════
 // CONFIG
 // ════════════════════════════════════════
+const API_BASE = window.location.origin; // Backend URL (same origin since backend serves frontend)
 const TOTAL_FRAMES = 300;
 const INTRO_FRAMES = 90;
 const W = 1280, H = 720;
@@ -607,6 +608,8 @@ let audioStartTime = 0;
 let masterGain = null;
 let oscillators = [];
 let audioInitialized = false;
+let audioElement = null; // For real video audio
+let audioSource = null;
 
 function initAudio() {
   if (audioInitialized) return;
@@ -614,6 +617,18 @@ function initAudio() {
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0;
   masterGain.connect(audioCtx.destination);
+
+  // If we have real audio from manifest, load it
+  if (isRealVideo && loadedManifest && loadedManifest.audio_url) {
+    audioElement = new Audio();
+    audioElement.src = API_BASE + loadedManifest.audio_url;
+    audioElement.loop = true;
+    audioSource = audioCtx.createMediaElementSource(audioElement);
+    audioSource.connect(masterGain);
+    audioInitialized = true;
+    audioStartTime = audioCtx.currentTime;
+    return;
+  }
 
   // Create ambient synth layers
   const notes = [
@@ -680,6 +695,12 @@ function initAudio() {
 function startAudio() {
   if (!audioInitialized) initAudio();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  // If real audio, play the audio element
+  if (audioElement) {
+    audioElement.play().catch(e => console.error('Audio play failed:', e));
+  }
+
   masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
   masterGain.gain.setTargetAtTime(0.75, audioCtx.currentTime, 0.5);
   audioPlaying = true;
@@ -689,6 +710,12 @@ function startAudio() {
 
 function pauseAudio() {
   if (!audioInitialized) return;
+
+  // If real audio, pause the audio element
+  if (audioElement) {
+    audioElement.pause();
+  }
+
   masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
   masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
   audioPlaying = false;
@@ -969,6 +996,14 @@ function drawVideoFrame(n) {
 // CROSSFADE
 // ════════════════════════════════════════
 function drawCompositeFrame(gf) {
+  // If real video, just draw the frame directly
+  if (isRealVideo && loadedFrames.length > 0) {
+    const frameIdx = Math.min(gf, loadedFrames.length - 1);
+    drawRealFrame(frameIdx);
+    return;
+  }
+
+  // Otherwise, use synthetic demo graphics
   const cs = INTRO_FRAMES - CROSSFADE_FRAMES;
   if(gf < cs) { drawIntroFrame(gf); }
   else if(gf < INTRO_FRAMES) {
@@ -1066,16 +1101,147 @@ async function runProc(vidId){
 }
 
 // ════════════════════════════════════════
+// REAL API INTEGRATION
+// ════════════════════════════════════════
+let loadedFrames = [];
+let loadedManifest = null;
+let isRealVideo = false;
+
+async function callBackendAPI(youtubeUrl) {
+  try {
+    // Start generation
+    const res = await fetch(`${API_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ youtube_url: youtubeUrl })
+    });
+
+    if (!res.ok) throw new Error('Failed to start generation');
+
+    const { job_id } = await res.json();
+
+    // Poll for status
+    return await pollJobStatus(job_id);
+  } catch (err) {
+    console.error('API Error:', err);
+    throw err;
+  }
+}
+
+async function pollJobStatus(jobId) {
+  const ps = document.getElementById('procScreen');
+  const log = document.getElementById('procLog');
+
+  while (true) {
+    try {
+      const res = await fetch(`${API_BASE}/api/status/${jobId}`);
+      const data = await res.json();
+
+      // Update progress UI
+      document.getElementById('progFill').style.width = data.progress + '%';
+      document.getElementById('progPct').textContent = data.progress + '%';
+
+      // Add log entry
+      const l = document.createElement('div');
+      l.className = 'll';
+      l.innerHTML = `<span style="color:#00aa00">[${new Date().toLocaleTimeString()}]</span> ${data.step}`;
+      log.appendChild(l);
+      log.scrollTop = log.scrollHeight;
+
+      if (data.status === 'complete') {
+        // Load the manifest
+        const manifest = await loadManifest(jobId);
+        return manifest;
+      } else if (data.status === 'error') {
+        throw new Error(data.error || 'Generation failed');
+      }
+
+      await new Promise(r => setTimeout(r, 1000)); // Poll every second
+    } catch (err) {
+      console.error('Polling error:', err);
+      throw err;
+    }
+  }
+}
+
+async function loadManifest(videoId) {
+  const res = await fetch(`${API_BASE}/api/experience/${videoId}`);
+  if (!res.ok) throw new Error('Failed to load manifest');
+  return await res.json();
+}
+
+async function preloadFrames(frameUrls) {
+  const frames = [];
+  for (const url of frameUrls) {
+    const img = new Image();
+    img.src = API_BASE + url;
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+    frames.push(img);
+  }
+  return frames;
+}
+
+function drawRealFrame(frameIndex) {
+  if (!loadedFrames[frameIndex]) return;
+  ctx.drawImage(loadedFrames[frameIndex], 0, 0, W, H);
+  totalRendered++;
+}
+
+// ════════════════════════════════════════
 // LAUNCH
 // ════════════════════════════════════════
 async function startGen(){
-  const url=urlIn.value.trim();const vidId=getVid(url);
+  const url = urlIn.value.trim();
+  const vidId = getVid(url);
+
   document.getElementById('landingScreen').classList.add('hidden');
-  await runProc(vidId);
-  launch(vidId?`Video ${vidId}`:'Demo Experience',vidId?'YOUR VIDEO':'REWIND DEMO',vidId?'AI-Generated Experience':'Parallax Dreams');
+  document.getElementById('procScreen').classList.add('active');
+  document.getElementById('procVid').textContent = url;
+
+  const log = document.getElementById('procLog');
+  log.innerHTML = '';
+  document.getElementById('progFill').style.width = '0%';
+  document.getElementById('progPct').textContent = '0%';
+
+  try {
+    // Call real backend API
+    const manifest = await callBackendAPI(url);
+
+    // Preload frames
+    const l = document.createElement('div');
+    l.className = 'll';
+    l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading frames into browser...';
+    log.appendChild(l);
+
+    loadedFrames = await preloadFrames(manifest.frame_urls);
+    loadedManifest = manifest;
+    isRealVideo = true;
+
+    l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="ok">✓</span> <span style="color:#ffd700">ALL FRAMES LOADED — LAUNCHING EXPERIENCE</span>';
+
+    await new Promise(r => setTimeout(r, 800));
+    document.getElementById('procScreen').classList.remove('active');
+
+    // Update freeze moments from AI
+    FREEZE_MOMENTS.length = 0;
+    manifest.freeze_moments.forEach(fm => FREEZE_MOMENTS.push(fm));
+
+    launch(manifest.title, manifest.channel, manifest.title);
+  } catch (err) {
+    alert('Error generating experience: ' + err.message);
+    document.getElementById('procScreen').classList.remove('active');
+    document.getElementById('landingScreen').classList.remove('hidden');
+  }
 }
 
 async function startDemo(){
+  isRealVideo = false;
+  loadedFrames = [];
+  loadedManifest = null;
+
   document.getElementById('landingScreen').classList.add('hidden');
   await runProc(null);
   launch('Demo Experience','REWIND DEMO','Parallax Dreams');
@@ -1111,6 +1277,19 @@ function reset(){
   document.getElementById('audioPlayer').classList.remove('visible');
   document.getElementById('unmutePrompt').classList.remove('visible');
   if(audioPlaying) pauseAudio();
+
+  // Clean up real video state
+  if (audioElement) {
+    audioElement.pause();
+    audioElement.src = '';
+    audioElement = null;
+  }
+  isRealVideo = false;
+  loadedFrames = [];
+  loadedManifest = null;
+  audioInitialized = false;
+  audioSource = null;
+
   urlIn.value='';genBtn.disabled=true;
   freezesHit.clear();dirChanges=0;totalRendered=0;lastDir=0;
   window.scrollTo(0,0);
