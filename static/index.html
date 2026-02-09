@@ -474,6 +474,7 @@
   <div class="top-bar">
     <div class="logo"><span class="logo-m">REWIND</span><span class="logo-s">// FREEZE FRAME</span></div>
     <div class="top-r">
+      <button class="new-btn" id="shareBtn" style="display:none;">⚡ SHARE</button>
       <button class="new-btn" id="newBtn">+ NEW VIDEO</button>
       <div class="s-hud">
         <span style="font-size:12px;opacity:0.4">SCROLL</span>
@@ -569,6 +570,42 @@
 </div>
 
 <div class="dir-ind" id="dirInd"></div>
+
+<!-- SHARE NOTIFICATION -->
+<div class="share-toast" id="shareToast">
+  <span style="font-size:20px;">⚡</span>
+  <div>
+    <div style="font-family:'Press Start 2P';font-size:10px;color:var(--gold);margin-bottom:4px;">LINK COPIED!</div>
+    <div style="font-size:14px;opacity:0.7;">Share this experience with anyone</div>
+  </div>
+</div>
+
+<style>
+.share-toast {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 1000;
+  background: rgba(0,0,0,0.95);
+  border: 2px solid var(--gold);
+  padding: 16px 20px;
+  border-radius: 8px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 0 30px rgba(255,215,0,0.4);
+  animation: slideIn 0.3s ease-out;
+}
+
+.share-toast.show {
+  display: flex;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(400px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+</style>
 
 <script>
 // ════════════════════════════════════════
@@ -1106,6 +1143,7 @@ async function runProc(vidId){
 let loadedFrames = [];
 let loadedManifest = null;
 let isRealVideo = false;
+let currentVideoId = null; // For sharing
 
 async function callBackendAPI(youtubeUrl) {
   try {
@@ -1249,6 +1287,7 @@ async function startGen(){
     loadedFrames = await preloadFrames(manifest.frame_urls);
     loadedManifest = manifest;
     isRealVideo = true;
+    currentVideoId = manifest.video_id; // Store for sharing
 
     l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="ok">✓</span> <span style="color:#ffd700">ALL FRAMES LOADED — LAUNCHING EXPERIENCE</span>';
 
@@ -1258,6 +1297,9 @@ async function startGen(){
     // Update freeze moments from AI
     FREEZE_MOMENTS.length = 0;
     manifest.freeze_moments.forEach(fm => FREEZE_MOMENTS.push(fm));
+
+    // Show share button
+    document.getElementById('shareBtn').style.display = 'block';
 
     launch(manifest.title, manifest.channel, manifest.title);
   } catch (err) {
@@ -1319,16 +1361,105 @@ function reset(){
   loadedManifest = null;
   audioInitialized = false;
   audioSource = null;
+  currentVideoId = null;
+
+  // Hide share button
+  document.getElementById('shareBtn').style.display = 'none';
 
   urlIn.value='';genBtn.disabled=true;
   freezesHit.clear();dirChanges=0;totalRendered=0;lastDir=0;
   window.scrollTo(0,0);
+
+  // Clear URL params
+  window.history.replaceState({}, '', window.location.pathname);
+
   animBg();
 }
 
 document.getElementById('demoBtn').addEventListener('click',startDemo);
 document.getElementById('newBtn').addEventListener('click',reset);
 document.getElementById('againBtn').addEventListener('click',reset);
+
+// ════════════════════════════════════════
+// SHARE FUNCTIONALITY
+// ════════════════════════════════════════
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  if (!currentVideoId) return;
+
+  const shareUrl = `${window.location.origin}/?v=${currentVideoId}`;
+
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+
+    // Show toast
+    const toast = document.getElementById('shareToast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  } catch (err) {
+    // Fallback if clipboard fails
+    prompt('Copy this link to share:', shareUrl);
+  }
+});
+
+// ════════════════════════════════════════
+// AUTO-LOAD SHARED EXPERIENCES
+// ════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const videoId = urlParams.get('v');
+
+  if (videoId) {
+    console.log('[SHARE] Loading shared experience:', videoId);
+
+    // Hide landing, show processing
+    document.getElementById('landingScreen').classList.add('hidden');
+    document.getElementById('procScreen').classList.add('active');
+    document.getElementById('procVid').textContent = `Shared: ${videoId}`;
+
+    const log = document.getElementById('procLog');
+    log.innerHTML = '';
+
+    try {
+      // Load manifest
+      const l1 = document.createElement('div');
+      l1.className = 'll';
+      l1.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading shared experience...';
+      log.appendChild(l1);
+
+      const manifest = await loadManifest(videoId);
+
+      // Preload frames
+      const l2 = document.createElement('div');
+      l2.className = 'll';
+      l2.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading ' + manifest.frame_urls.length + ' frames...';
+      log.appendChild(l2);
+
+      loadedFrames = await preloadFrames(manifest.frame_urls);
+      loadedManifest = manifest;
+      isRealVideo = true;
+      currentVideoId = videoId;
+
+      l2.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="ok">✓</span> <span style="color:#ffd700">EXPERIENCE LOADED — LAUNCHING</span>';
+
+      await new Promise(r => setTimeout(r, 800));
+      document.getElementById('procScreen').classList.remove('active');
+
+      // Update freeze moments
+      FREEZE_MOMENTS.length = 0;
+      manifest.freeze_moments.forEach(fm => FREEZE_MOMENTS.push(fm));
+
+      // Show share button
+      document.getElementById('shareBtn').style.display = 'block';
+
+      launch(manifest.title, manifest.channel, manifest.title);
+    } catch (err) {
+      console.error('[SHARE] Failed to load:', err);
+      alert('This shared experience could not be loaded. It may have expired or been deleted.');
+      document.getElementById('procScreen').classList.remove('active');
+      document.getElementById('landingScreen').classList.remove('hidden');
+    }
+  }
+});
 
 // ════════════════════════════════════════
 // AUDIO CONTROLS
