@@ -30,12 +30,9 @@
     overflow-x: hidden;
   }
 
-  /* CRT */
-  .crt-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
-  .crt-overlay::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,255,0,0.025) 0px, rgba(0,255,0,0.025) 1px, transparent 1px, transparent 3px); }
-  .crt-overlay::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%); }
-  @keyframes scanmove { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
-  .scan-bar { position: fixed; top: 0; left: 0; width: 100%; height: 5px; background: rgba(0,255,0,0.06); z-index: 9998; pointer-events: none; animation: scanmove 3.5s linear infinite; }
+  /* CRT - SCANLINES REMOVED FOR CLEANER VIEWING */
+  .crt-overlay { display: none; }
+  .scan-bar { display: none; }
 
   /* ════════════════════════════════════════════════════ */
   /* LANDING                                              */
@@ -155,6 +152,7 @@
   .freeze-bot { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.92)); padding: 50px 20px 18px; }
   .freeze-bot h3 { font-family: 'Press Start 2P'; font-size: clamp(9px,1.3vw,13px); color: var(--gold); margin-bottom: 6px; text-shadow: 0 0 8px rgba(255,215,0,0.4); }
   .freeze-bot p { font-family: 'VT323'; font-size: clamp(16px,1.8vw,22px); color: var(--green); text-shadow: 0 0 6px var(--green-glow); line-height: 1.35; }
+  .freeze-continue { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); font-family: 'Press Start 2P'; font-size: 10px; color: var(--gold); text-shadow: 0 0 12px rgba(255,215,0,0.6); animation: pp 1.5s ease-in-out infinite; border: 1px solid var(--gold); padding: 8px 16px; background: rgba(0,0,0,0.8); }
 
   /* GLITCH */
   .glitch-fx { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
@@ -508,6 +506,7 @@
         <div class="freeze-ov" id="freezeOv">
           <div class="freeze-badge">◆ FREEZE FRAME ◆</div>
           <div class="freeze-bot"><h3 id="fTitle"></h3><p id="fDesc"></p></div>
+          <div class="freeze-continue" id="freezeContinue">SCROLL TO CONTINUE ⌄</div>
         </div>
         <div class="glitch-fx" id="glitchFx">
           <div class="g-bar" style="top:12%;height:3px"></div>
@@ -628,6 +627,7 @@ const FREEZE_MOMENTS = [
 let currentFrame = 0, lastFrame = -1, lastScrollY = 0;
 let dirChanges = 0, lastDir = 0;
 let freezesHit = new Set(), totalRendered = 0;
+let scrollLocked = false, lockedScrollY = 0, lockReleaseAttempts = 0;
 
 const canvas = document.getElementById('videoCanvas');
 const ctx = canvas.getContext('2d');
@@ -1220,17 +1220,23 @@ async function loadManifest(videoId) {
   return await res.json();
 }
 
-async function preloadFrames(frameUrls) {
+async function preloadFrames(frameUrls, progressCallback) {
   console.log('[PRELOAD] Starting batch load of', frameUrls.length, 'frames');
   const frames = new Array(frameUrls.length);
-  const BATCH_SIZE = 20; // Load 20 frames at a time
+  const BATCH_SIZE = 50; // Load 50 frames at a time for faster loading
 
   for (let i = 0; i < frameUrls.length; i += BATCH_SIZE) {
     const batch = frameUrls.slice(i, i + BATCH_SIZE);
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
     const totalBatches = Math.ceil(frameUrls.length / BATCH_SIZE);
+    const percentComplete = Math.round((i / frameUrls.length) * 100);
 
-    console.log(`[PRELOAD] Loading batch ${batchNum}/${totalBatches} (${batch.length} frames)`);
+    console.log(`[PRELOAD] Batch ${batchNum}/${totalBatches} - ${percentComplete}% complete`);
+
+    // Update progress if callback provided
+    if (progressCallback) {
+      progressCallback(percentComplete, `Loading frames: ${percentComplete}%`);
+    }
 
     await Promise.all(batch.map((url, idx) => {
       return new Promise((resolve, reject) => {
@@ -1246,6 +1252,10 @@ async function preloadFrames(frameUrls) {
         img.src = API_BASE + url;
       });
     }));
+  }
+
+  if (progressCallback) {
+    progressCallback(100, 'All frames loaded!');
   }
 
   console.log('[PRELOAD] All frames loaded successfully!');
@@ -1278,18 +1288,24 @@ async function startGen(){
     // Call real backend API
     const manifest = await callBackendAPI(url);
 
-    // Preload frames
+    // Preload frames with live progress
     const l = document.createElement('div');
     l.className = 'll';
-    l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading frames into browser...';
+    l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading frames: 0%';
     log.appendChild(l);
+    log.scrollTop = log.scrollHeight;
 
-    loadedFrames = await preloadFrames(manifest.frame_urls);
+    loadedFrames = await preloadFrames(manifest.frame_urls, (percent, msg) => {
+      l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> ' + msg;
+      log.scrollTop = log.scrollHeight;
+    });
+
     loadedManifest = manifest;
     isRealVideo = true;
     currentVideoId = manifest.video_id; // Store for sharing
 
     l.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="ok">✓</span> <span style="color:#ffd700">ALL FRAMES LOADED — LAUNCHING EXPERIENCE</span>';
+    log.scrollTop = log.scrollHeight;
 
     await new Promise(r => setTimeout(r, 800));
     document.getElementById('procScreen').classList.remove('active');
@@ -1428,18 +1444,24 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       const manifest = await loadManifest(videoId);
 
-      // Preload frames
+      // Preload frames with live progress
       const l2 = document.createElement('div');
       l2.className = 'll';
-      l2.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading ' + manifest.frame_urls.length + ' frames...';
+      l2.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> Loading ' + manifest.frame_urls.length + ' frames: 0%';
       log.appendChild(l2);
+      log.scrollTop = log.scrollHeight;
 
-      loadedFrames = await preloadFrames(manifest.frame_urls);
+      loadedFrames = await preloadFrames(manifest.frame_urls, (percent, msg) => {
+        l2.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="wk">⟳</span> ' + msg;
+        log.scrollTop = log.scrollHeight;
+      });
+
       loadedManifest = manifest;
       isRealVideo = true;
       currentVideoId = videoId;
 
       l2.innerHTML = '<span style="color:#00aa00">[' + new Date().toLocaleTimeString() + ']</span> <span class="ok">✓</span> <span style="color:#ffd700">EXPERIENCE LOADED — LAUNCHING</span>';
+      log.scrollTop = log.scrollHeight;
 
       await new Promise(r => setTimeout(r, 800));
       document.getElementById('procScreen').classList.remove('active');
@@ -1497,6 +1519,33 @@ let dirTo;
 function onScroll(){
   if(!document.getElementById('expScreen').classList.contains('active'))return;
   const sy=window.scrollY;
+
+  // FREEZE POINT SCROLL LOCK - User must scroll again to continue
+  if(scrollLocked){
+    // Check if user is trying to scroll past freeze point
+    if(sy > lockedScrollY + 50){
+      lockReleaseAttempts++;
+      // After 1 scroll attempt, release the lock
+      if(lockReleaseAttempts >= 1){
+        scrollLocked = false;
+        lockReleaseAttempts = 0;
+        console.log('[FREEZE] Lock released - continuing');
+      } else {
+        // Lock still active - scroll back to freeze point
+        window.scrollTo(0, lockedScrollY);
+        return;
+      }
+    } else if(sy < lockedScrollY - 50){
+      // User scrolling backwards - release lock
+      scrollLocked = false;
+      lockReleaseAttempts = 0;
+    } else {
+      // Still in lock zone, maintain position
+      window.scrollTo(0, lockedScrollY);
+      return;
+    }
+  }
+
   const dir=sy>lastScrollY?1:sy<lastScrollY?-1:0;
   if(dir!==0&&dir!==lastDir){if(lastDir!==0)dirChanges++;lastDir=dir;}
   const di=document.getElementById('dirInd');
@@ -1526,8 +1575,32 @@ function onScroll(){
   const introR=INTRO_FRAMES/TOTAL_FRAMES;
   const vProg=inIntro?-1:(prog-introR)/(1-introR);
   let inF=false;
-  if(!inIntro){for(const fm of FREEZE_MOMENTS){if(Math.abs(vProg-fm.at)<0.018){document.getElementById('freezeOv').classList.add('active');document.getElementById('fTitle').textContent=fm.title;document.getElementById('fDesc').textContent=fm.desc;freezesHit.add(fm.at);inF=true;break;}}}
-  if(!inF)document.getElementById('freezeOv').classList.remove('active');
+  if(!inIntro){
+    for(const fm of FREEZE_MOMENTS){
+      if(Math.abs(vProg-fm.at)<0.018){
+        document.getElementById('freezeOv').classList.add('active');
+        document.getElementById('fTitle').textContent=fm.title;
+        document.getElementById('fDesc').textContent=fm.desc;
+
+        // Lock scroll on first encounter with this freeze moment
+        if(!freezesHit.has(fm.at) && !scrollLocked){
+          scrollLocked = true;
+          lockedScrollY = sy;
+          lockReleaseAttempts = 0;
+          console.log('[FREEZE] Scroll locked at', fm.title);
+        }
+
+        freezesHit.add(fm.at);
+        inF=true;
+        break;
+      }
+    }
+  }
+
+  if(!inF){
+    document.getElementById('freezeOv').classList.remove('active');
+    // Don't reset lock here - let the scroll handler manage unlock
+  }
 
   const gfx=document.getElementById('glitchFx');
   if(Math.abs(currentFrame-lastFrame)>5){gfx.classList.remove('active');void gfx.offsetWidth;gfx.classList.add('active');}
