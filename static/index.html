@@ -152,7 +152,6 @@
   .freeze-bot { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.92)); padding: 50px 20px 18px; }
   .freeze-bot h3 { font-family: 'Press Start 2P'; font-size: clamp(9px,1.3vw,13px); color: var(--gold); margin-bottom: 6px; text-shadow: 0 0 8px rgba(255,215,0,0.4); }
   .freeze-bot p { font-family: 'VT323'; font-size: clamp(16px,1.8vw,22px); color: var(--green); text-shadow: 0 0 6px var(--green-glow); line-height: 1.35; }
-  .freeze-continue { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); font-family: 'Press Start 2P'; font-size: 10px; color: var(--gold); text-shadow: 0 0 12px rgba(255,215,0,0.6); animation: pp 1.5s ease-in-out infinite; border: 1px solid var(--gold); padding: 8px 16px; background: rgba(0,0,0,0.8); }
 
   /* GLITCH */
   .glitch-fx { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
@@ -506,7 +505,6 @@
         <div class="freeze-ov" id="freezeOv">
           <div class="freeze-badge">◆ FREEZE FRAME ◆</div>
           <div class="freeze-bot"><h3 id="fTitle"></h3><p id="fDesc"></p></div>
-          <div class="freeze-continue" id="freezeContinue">SCROLL TO CONTINUE ⌄</div>
         </div>
         <div class="glitch-fx" id="glitchFx">
           <div class="g-bar" style="top:12%;height:3px"></div>
@@ -1520,27 +1518,15 @@ function onScroll(){
   if(!document.getElementById('expScreen').classList.contains('active'))return;
   const sy=window.scrollY;
 
-  // FREEZE POINT SCROLL LOCK - User must scroll again to continue
+  // FREEZE POINT SCROLL PAUSE - Creates a natural stop at freeze moments
   if(scrollLocked){
-    // Check if user is trying to scroll past freeze point
-    if(sy > lockedScrollY + 50){
-      lockReleaseAttempts++;
-      // After 1 scroll attempt, release the lock
-      if(lockReleaseAttempts >= 1){
-        scrollLocked = false;
-        lockReleaseAttempts = 0;
-        console.log('[FREEZE] Lock released - continuing');
-      } else {
-        // Lock still active - scroll back to freeze point
-        window.scrollTo(0, lockedScrollY);
-        return;
-      }
-    } else if(sy < lockedScrollY - 50){
-      // User scrolling backwards - release lock
+    // Any scroll attempt releases the lock - creates brief pause without blocking
+    if(Math.abs(sy - lockedScrollY) > 10){
       scrollLocked = false;
       lockReleaseAttempts = 0;
+      console.log('[FREEZE] Pause released - continuing naturally');
     } else {
-      // Still in lock zone, maintain position
+      // Maintain position briefly to create the "freeze" effect
       window.scrollTo(0, lockedScrollY);
       return;
     }
