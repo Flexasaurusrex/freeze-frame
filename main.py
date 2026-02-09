@@ -540,12 +540,13 @@ Look for:
 
 For each of the 5 moments, provide:
 - sample_index: Which sample frame (0-{SAMPLE_FRAMES_FOR_AI - 1}) - REQUIRED
-- title: A poetic, evocative title (2-4 words, ALL CAPS) — think gallery exhibition labels
-- description: One vivid, atmospheric sentence describing THIS SPECIFIC FRAME you selected. Make the viewer feel the weight of this moment. Write like a music journalist.
+- title: A powerful, evocative title (2-5 words, ALL CAPS) — think opening credits or chapter titles
+- description: 2-3 sentences of CINEMATIC COMMENTARY on THIS SPECIFIC FRAME. Write like a film director analyzing a critical shot — describe the visual composition, the emotional weight, the narrative moment. What makes THIS frame unforgettable? What story does it tell in a single instant? Make it VIVID and IMPACTFUL.
 
 IMPORTANT:
 - Space the 5 selections across the video (don't cluster them)
-- Your description must match the actual frame you're selecting
+- Your description must match the EXACT frame you're selecting
+- Write descriptions that HIT HARD — this is visual storytelling at its peak
 - Only select from the frames I showed you
 
 Respond ONLY with a JSON array:
@@ -590,7 +591,7 @@ Respond ONLY with a JSON array:
                 },
                 json={
                     "model": "claude-sonnet-4-5-20250929",  # Best vision quality for iconic moment selection
-                    "max_tokens": 1024,
+                    "max_tokens": 2048,  # More tokens for longer, cinematic descriptions
                     "messages": [
                         {"role": "user", "content": content}
                     ],
@@ -636,8 +637,8 @@ Respond ONLY with a JSON array:
 
                 result.append({
                     "at": max(0.05, min(0.95, position)),
-                    "title": str(m.get("title", "FREEZE FRAME"))[:40],
-                    "desc": str(m.get("description", "A frozen moment in time."))[:200],
+                    "title": str(m.get("title", "FREEZE FRAME"))[:50],
+                    "desc": str(m.get("description", "A frozen moment in time."))[:500],
                 })
 
             if len(result) >= 3:
