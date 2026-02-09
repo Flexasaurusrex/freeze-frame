@@ -1109,6 +1109,9 @@ let isRealVideo = false;
 
 async function callBackendAPI(youtubeUrl) {
   try {
+    console.log('[API] Calling backend:', `${API_BASE}/api/generate`);
+    console.log('[API] YouTube URL:', youtubeUrl);
+
     // Start generation
     const res = await fetch(`${API_BASE}/api/generate`, {
       method: 'POST',
@@ -1116,14 +1119,23 @@ async function callBackendAPI(youtubeUrl) {
       body: JSON.stringify({ youtube_url: youtubeUrl })
     });
 
-    if (!res.ok) throw new Error('Failed to start generation');
+    console.log('[API] Response status:', res.status);
 
-    const { job_id } = await res.json();
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('[API] Error response:', errorText);
+      throw new Error(`Backend error (${res.status}): ${errorText}`);
+    }
+
+    const data = await res.json();
+    console.log('[API] Response data:', data);
+
+    const { job_id } = data;
 
     // Poll for status
     return await pollJobStatus(job_id);
   } catch (err) {
-    console.error('API Error:', err);
+    console.error('[API] Error:', err);
     throw err;
   }
 }
@@ -1171,16 +1183,34 @@ async function loadManifest(videoId) {
 }
 
 async function preloadFrames(frameUrls) {
-  const frames = [];
-  for (const url of frameUrls) {
-    const img = new Image();
-    img.src = API_BASE + url;
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
-    frames.push(img);
+  console.log('[PRELOAD] Starting batch load of', frameUrls.length, 'frames');
+  const frames = new Array(frameUrls.length);
+  const BATCH_SIZE = 20; // Load 20 frames at a time
+
+  for (let i = 0; i < frameUrls.length; i += BATCH_SIZE) {
+    const batch = frameUrls.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(frameUrls.length / BATCH_SIZE);
+
+    console.log(`[PRELOAD] Loading batch ${batchNum}/${totalBatches} (${batch.length} frames)`);
+
+    await Promise.all(batch.map((url, idx) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          frames[i + idx] = img;
+          resolve();
+        };
+        img.onerror = () => {
+          console.error('[PRELOAD] Failed to load:', url);
+          reject(new Error(`Frame ${i + idx} failed to load`));
+        };
+        img.src = API_BASE + url;
+      });
+    }));
   }
+
+  console.log('[PRELOAD] All frames loaded successfully!');
   return frames;
 }
 
