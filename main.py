@@ -506,13 +506,16 @@ async def analyze_frames_with_claude(
         # Return default freeze moments if no frames
         return default_freeze_moments()
 
-    # Sample evenly across the video (skip first 30% which will be intro)
+    # Sample evenly across the video (skip first 10% for intro variety)
     start_idx = int(len(frame_files) * 0.1)
     sample_indices = [
         int(start_idx + (i / SAMPLE_FRAMES_FOR_AI) * (len(frame_files) - start_idx))
         for i in range(SAMPLE_FRAMES_FOR_AI)
     ]
     sample_indices = [min(i, len(frame_files) - 1) for i in sample_indices]
+
+    # Create a mapping of sample index to actual frame index for reference
+    frame_index_map = {i: sample_indices[i] for i in range(len(sample_indices))}
 
     # Build message content with images
     content = [
@@ -521,9 +524,12 @@ async def analyze_frames_with_claude(
             "text": f"""You are a visual curator for REWIND — a platform that transforms music videos into scroll-controlled cinematic experiences. You have an extraordinary eye for the frames that define a music video's visual identity.
 
 You're analyzing frames from "{title}" by {channel}.
-I'm sending you {SAMPLE_FRAMES_FOR_AI} evenly-sampled frames from this video (frames are numbered 0 to {total_frames - 1}).
 
-YOUR TASK: Select the 5 most visually POWERFUL frames — the ones that would make someone stop scrolling, screenshot, and share. Think like a museum curator choosing which frames deserve to be frozen in time.
+I'm showing you {SAMPLE_FRAMES_FOR_AI} key frames from this video. Each frame is labeled as "SAMPLE #X" - this is the reference number you'll use.
+
+YOUR TASK: Select the 5 most visually POWERFUL frames from the ones I'm showing you. Think like a museum curator choosing which frames deserve to be frozen in time.
+
+CRITICAL: You can ONLY select from the {SAMPLE_FRAMES_FOR_AI} frames I'm showing you. Reference them by their SAMPLE number (0-{SAMPLE_FRAMES_FOR_AI - 1}).
 
 Look for:
 - Dramatic lighting shifts or color explosions
@@ -533,24 +539,26 @@ Look for:
 - The single frame that could be the album cover
 
 For each of the 5 moments, provide:
-- frame_index: The approximate frame number (0-{total_frames - 1})  
-- position: A value from 0.0 to 1.0 indicating where in the video this occurs
-- title: A poetic, evocative title (2-4 words, ALL CAPS) — think gallery exhibition labels, not generic descriptions
-- description: One vivid, atmospheric sentence that makes the viewer feel the weight of this frozen moment. Write like a music journalist, not a robot.
+- sample_index: Which sample frame (0-{SAMPLE_FRAMES_FOR_AI - 1}) - REQUIRED
+- title: A poetic, evocative title (2-4 words, ALL CAPS) — think gallery exhibition labels
+- description: One vivid, atmospheric sentence describing THIS SPECIFIC FRAME you selected. Make the viewer feel the weight of this moment. Write like a music journalist.
 
-IMPORTANT: Space the 5 moments across the full video. Don't cluster them together.
+IMPORTANT:
+- Space the 5 selections across the video (don't cluster them)
+- Your description must match the actual frame you're selecting
+- Only select from the frames I showed you
 
-Respond ONLY with a JSON array, no other text:
+Respond ONLY with a JSON array:
 [
-  {{"frame_index": 45, "position": 0.15, "title": "THE OPENING SHOT", "description": "..."}},
+  {{"sample_index": 3, "title": "THE OPENING SHOT", "description": "..."}},
   ...
 ]"""
         }
     ]
 
     # Add sample frames as images
-    for idx in sample_indices:
-        frame_path = frame_files[idx]
+    for sample_idx, frame_idx in enumerate(sample_indices):
+        frame_path = frame_files[frame_idx]
         with open(frame_path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
 
@@ -559,7 +567,7 @@ Respond ONLY with a JSON array, no other text:
 
         content.append({
             "type": "text",
-            "text": f"Frame #{idx} of {total_frames}:"
+            "text": f"SAMPLE #{sample_idx}:"
         })
         content.append({
             "type": "image",
@@ -610,12 +618,24 @@ Respond ONLY with a JSON array, no other text:
 
             moments = json.loads(text)
 
-            # Validate and normalize
+            # Validate and normalize - map sample_index back to actual position
             result = []
             for m in moments[:FREEZE_POINTS]:
-                pos = float(m.get("position", 0.5))
+                sample_idx = int(m.get("sample_index", 0))
+
+                # Ensure sample_idx is valid
+                if sample_idx < 0 or sample_idx >= len(sample_indices):
+                    print(f"Invalid sample_index {sample_idx}, skipping")
+                    continue
+
+                # Get the actual frame index from our sample
+                actual_frame_idx = sample_indices[sample_idx]
+
+                # Calculate position in video (0.0 to 1.0)
+                position = actual_frame_idx / total_frames
+
                 result.append({
-                    "at": max(0.05, min(0.95, pos)),
+                    "at": max(0.05, min(0.95, position)),
                     "title": str(m.get("title", "FREEZE FRAME"))[:40],
                     "desc": str(m.get("description", "A frozen moment in time."))[:200],
                 })
