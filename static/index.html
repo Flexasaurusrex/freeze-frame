@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FREEZE FRAME // by REWIND</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --green: #00ff00;
+    --green-mid: #00cc00;
+    --green-dim: #00aa00;
+    --green-glow: rgba(0, 255, 0, 0.4);
+    --green-dark: #003300;
+    --green-bg: rgba(0, 20, 0, 0.6);
+    --gold: #ffd700;
+    --orange: #ff6b00;
+    --amber: #ffcc00;
+    --red: #ff3333;
+    --black: #000000;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: auto; }
+  body {
+    background: var(--black);
+    color: var(--green);
+    font-family: 'VT323', monospace;
+    overflow-x: hidden;
+  }
+
+  /* CRT */
+  .crt-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
+  .crt-overlay::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,255,0,0.025) 0px, rgba(0,255,0,0.025) 1px, transparent 1px, transparent 3px); }
+  .crt-overlay::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%); }
+  @keyframes scanmove { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+  .scan-bar { position: fixed; top: 0; left: 0; width: 100%; height: 5px; background: rgba(0,255,0,0.06); z-index: 9998; pointer-events: none; animation: scanmove 3.5s linear infinite; }
+
+  /* ════════════════════════════════════════════════════ */
+  /* LANDING                                              */
+  /* ════════════════════════════════════════════════════ */
+  #landingScreen {
+    position: fixed; inset: 0; z-index: 500;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    background: var(--black);
+    transition: opacity 0.6s, transform 0.6s;
+  }
+  #landingScreen.hidden { opacity: 0; transform: scale(1.04); pointer-events: none; }
+  .landing-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+  .landing-bg canvas { width: 100%; height: 100%; opacity: 0.15; }
+  .landing-content { text-align: center; max-width: 700px; padding: 40px 24px; position: relative; }
+  .brand-line { font-size: 16px; color: var(--green-dim); text-shadow: 0 0 8px var(--green-glow); letter-spacing: 6px; text-transform: uppercase; margin-bottom: 12px; opacity: 0.7; }
+  .main-title { font-family: 'Press Start 2P'; font-size: clamp(28px, 6vw, 52px); line-height: 1.3; margin-bottom: 8px; }
+  .main-title .w1 { display: block; background: linear-gradient(135deg, var(--gold), var(--orange), var(--amber)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(0 0 25px rgba(255,215,0,0.5)); }
+  .main-title .w2 { display: block; color: var(--green); text-shadow: 0 0 30px var(--green-glow), 0 0 60px rgba(0,255,0,0.15); font-size: 0.85em; }
+  .tagline { font-size: clamp(18px, 2.5vw, 26px); color: var(--green-dim); text-shadow: 0 0 10px var(--green-glow); margin: 20px 0 40px; line-height: 1.5; }
+  .input-container { position: relative; width: 100%; max-width: 560px; margin: 0 auto 20px; }
+  .url-wrap { display: flex; border: 2px solid var(--green-dim); background: rgba(0, 10, 0, 0.8); border-radius: 6px; overflow: hidden; transition: border-color 0.3s, box-shadow 0.3s; }
+  .url-wrap:focus-within { border-color: var(--green); box-shadow: 0 0 20px var(--green-glow), inset 0 0 20px rgba(0,255,0,0.05); }
+  .url-wrap.err { border-color: var(--red); box-shadow: 0 0 15px rgba(255,50,50,0.3); }
+  .url-icon { display: flex; align-items: center; justify-content: center; padding: 0 14px; color: var(--green-dim); font-size: 20px; border-right: 1px solid rgba(0,255,0,0.15); background: rgba(0,20,0,0.5); min-width: 48px; }
+  #urlInput { flex: 1; background: transparent; border: none; outline: none; color: var(--green); font-family: 'Space Mono'; font-size: 14px; padding: 14px 16px; caret-color: var(--gold); }
+  #urlInput::placeholder { color: rgba(0,255,0,0.3); font-style: italic; }
+  .gen-btn { background: linear-gradient(135deg, var(--green-dark), rgba(0,40,0,0.9)); border: none; color: var(--gold); font-family: 'Press Start 2P'; font-size: 10px; padding: 14px 20px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; white-space: nowrap; border-left: 1px solid rgba(0,255,0,0.15); }
+  .gen-btn:hover { background: linear-gradient(135deg, rgba(0,60,0,0.9), rgba(0,80,0,0.9)); text-shadow: 0 0 10px rgba(255,215,0,0.6); }
+  .gen-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .input-hint { font-size: 15px; color: var(--green-dim); opacity: 0.5; margin-top: 10px; }
+  .input-err { font-size: 15px; color: var(--red); margin-top: 10px; opacity: 0; transition: opacity 0.3s; }
+  .input-err.show { opacity: 1; }
+  .or-div { display: flex; align-items: center; gap: 16px; margin: 20px auto; max-width: 560px; color: var(--green-dim); opacity: 0.4; font-size: 14px; }
+  .or-div::before, .or-div::after { content: ""; flex: 1; height: 1px; background: var(--green-dim); }
+  .demo-btn { display: inline-block; background: transparent; border: 1px solid rgba(255,215,0,0.3); color: var(--gold); font-family: 'VT323'; font-size: 20px; padding: 10px 28px; cursor: pointer; transition: all 0.3s; letter-spacing: 2px; }
+  .demo-btn:hover { border-color: var(--gold); background: rgba(255,215,0,0.05); text-shadow: 0 0 12px rgba(255,215,0,0.5); box-shadow: 0 0 20px rgba(255,215,0,0.1); }
+  .steps { margin-top: 50px; display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; max-width: 600px; }
+  .step { text-align: center; flex: 1; min-width: 120px; }
+  .step-n { font-family: 'Space Mono'; font-size: 28px; color: var(--gold); text-shadow: 0 0 12px rgba(255,215,0,0.4); margin-bottom: 6px; }
+  .step-l { font-size: 16px; color: var(--green-dim); line-height: 1.4; }
+  .step-arr { display: flex; align-items: center; color: var(--green-dim); opacity: 0.3; font-size: 20px; padding-top: 10px; }
+
+  /* ════════════════════════════════════════════════════ */
+  /* PROCESSING                                           */
+  /* ════════════════════════════════════════════════════ */
+  #procScreen { position: fixed; inset: 0; z-index: 600; display: none; flex-direction: column; justify-content: center; align-items: center; background: var(--black); }
+  #procScreen.active { display: flex; }
+  .proc-content { text-align: center; max-width: 500px; padding: 40px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .spinner { display: inline-block; width: 40px; height: 40px; border: 3px solid var(--green-dark); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 24px; }
+  .proc-title { font-family: 'Press Start 2P'; font-size: 16px; color: var(--gold); text-shadow: 0 0 15px rgba(255,215,0,0.4); margin-bottom: 30px; }
+  .proc-vid { font-size: 22px; color: var(--green); text-shadow: 0 0 8px var(--green-glow); margin-bottom: 30px; word-break: break-all; }
+  .prog-bg { width: 100%; height: 8px; background: var(--green-dark); border-radius: 4px; overflow: hidden; border: 1px solid rgba(0,255,0,0.2); }
+  .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--gold), var(--orange)); border-radius: 4px; transition: width 0.3s; box-shadow: 0 0 10px var(--green-glow); }
+  .prog-pct { font-family: 'Space Mono'; font-size: 24px; color: var(--gold); margin-top: 8px; }
+  .proc-log { text-align: left; font-family: 'Space Mono'; font-size: 12px; color: var(--green-dim); border: 1px solid rgba(0,255,0,0.15); background: rgba(0,10,0,0.5); padding: 14px; max-height: 180px; overflow-y: auto; margin-top: 20px; line-height: 1.8; }
+  .proc-log .ll { opacity: 0; animation: lla 0.3s ease forwards; }
+  @keyframes lla { to{opacity:1} }
+  .ll .ok { color: var(--green); }
+  .ll .wk { color: var(--gold); }
+
+  /* ════════════════════════════════════════════════════ */
+  /* EXPERIENCE                                           */
+  /* ════════════════════════════════════════════════════ */
+  #expScreen { display: none; }
+  #expScreen.active { display: block; }
+
+  .top-bar { position: fixed; top: 0; left: 0; width: 100%; z-index: 100; display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 80%, transparent 100%); border-bottom: 1px solid rgba(0,255,0,0.1); }
+  .logo { display: flex; align-items: baseline; gap: 8px; }
+  .logo-m { font-family: 'Press Start 2P'; font-size: 12px; background: linear-gradient(135deg, var(--gold), var(--orange)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(0 0 8px rgba(255,215,0,0.5)); }
+  .logo-s { font-family: 'VT323'; font-size: 16px; color: var(--green); text-shadow: 0 0 8px var(--green-glow); opacity: 0.7; }
+  .top-r { display: flex; align-items: center; gap: 16px; }
+  .new-btn { background: transparent; border: 1px solid rgba(255,215,0,0.3); color: var(--gold); font-family: 'VT323'; font-size: 16px; padding: 5px 14px; cursor: pointer; transition: all 0.2s; }
+  .new-btn:hover { border-color: var(--gold); background: rgba(255,215,0,0.08); text-shadow: 0 0 8px rgba(255,215,0,0.5); }
+  .s-hud { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--green-dim); }
+  .s-bar-c { width: 100px; height: 3px; background: var(--green-dark); border-radius: 2px; overflow: hidden; }
+  .s-bar-f { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--gold)); border-radius: 2px; transition: width 0.05s linear; }
+  .s-pct { font-family: 'Space Mono'; font-size: 22px; color: var(--gold); text-shadow: 0 0 12px rgba(255,215,0,0.4); min-width: 55px; text-align: right; }
+
+  /* EXP INTRO */
+  .exp-intro { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .exp-intro-t { font-family: 'Press Start 2P'; font-size: clamp(20px, 4vw, 40px); margin-bottom: 16px; }
+  .exp-intro-t .t1 { display: block; background: linear-gradient(135deg, var(--gold), var(--orange)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(0 0 18px rgba(255,215,0,0.4)); }
+  .exp-intro-t .t2 { display: block; color: var(--green); text-shadow: 0 0 25px var(--green-glow); font-size: 0.65em; margin-top: 6px; }
+  .exp-meta { font-size: 22px; color: var(--green-dim); text-shadow: 0 0 8px var(--green-glow); margin-bottom: 6px; }
+  .exp-meta .vt { color: var(--gold); }
+  @keyframes pp { 0%,100%{opacity:0.3;transform:translateY(0)} 50%{opacity:0.8;transform:translateY(6px)} }
+  .scroll-p { margin-top: 40px; font-size: 18px; color: var(--gold); animation: pp 2s ease-in-out infinite; }
+  .scroll-p .ar { display: block; font-size: 28px; margin-top: 4px; }
+
+  /* VIDEO SCROLL */
+  .vid-scroll { position: relative; height: 700vh; }
+  .vid-sticky { position: sticky; top: 0; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+  .tv-frame { position: relative; width: min(88vw, 940px); aspect-ratio: 16/9; background: #0a0a0a; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 2px #1a1a1a, 0 0 0 4px #111, 0 0 50px rgba(0,255,0,0.1), inset 0 0 80px rgba(0,0,0,0.5); }
+  .tv-frame::before { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 120px rgba(0,0,0,0.5); z-index: 5; pointer-events: none; border-radius: 10px; }
+  #videoCanvas { width: 100%; height: 100%; display: block; background: #000; }
+
+  /* HUD */
+  .hud { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+  .hud-ch { position: absolute; top: 14px; left: 14px; font-family: 'VT323'; font-size: 16px; color: var(--gold); text-shadow: 0 0 8px rgba(255,215,0,0.4); background: rgba(0,0,0,0.5); padding: 2px 8px; }
+  .hud-rec { position: absolute; top: 14px; right: 14px; font-family: 'Space Mono'; font-size: 11px; color: var(--red); display: flex; align-items: center; gap: 5px; text-shadow: 0 0 6px rgba(255,50,50,0.5); }
+  .hud-rec .dot { width: 7px; height: 7px; background: var(--red); border-radius: 50%; animation: rb 1s step-end infinite; box-shadow: 0 0 5px rgba(255,50,50,0.7); }
+  @keyframes rb { 50%{opacity:0} }
+  .hud-tc { position: absolute; bottom: 10px; right: 14px; font-family: 'Space Mono'; font-size: clamp(10px,1.2vw,13px); color: var(--green); text-shadow: 0 0 5px var(--green-glow); opacity: 0.6; }
+  .hud-fr { position: absolute; bottom: 10px; left: 14px; font-family: 'Space Mono'; font-size: clamp(10px,1.2vw,13px); color: var(--gold); text-shadow: 0 0 5px rgba(255,215,0,0.3); opacity: 0.6; }
+
+  .phase-badge { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-family: 'Press Start 2P'; font-size: 8px; padding: 4px 10px; z-index: 12; pointer-events: none; transition: all 0.5s; }
+  .phase-badge.intro-phase { color: var(--gold); border: 1px solid rgba(255,215,0,0.4); background: rgba(0,0,0,0.7); text-shadow: 0 0 8px rgba(255,215,0,0.5); }
+  .phase-badge.video-phase { color: var(--green); border: 1px solid rgba(0,255,0,0.3); background: rgba(0,0,0,0.7); text-shadow: 0 0 8px var(--green-glow); }
+
+  /* FREEZE */
+  .freeze-ov { position: absolute; inset: 0; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+  .freeze-ov.active { opacity: 1; }
+  .freeze-badge { position: absolute; top: 14px; left: 14px; font-family: 'Press Start 2P'; font-size: 9px; color: var(--gold); background: rgba(0,0,0,0.85); border: 1px solid var(--gold); padding: 5px 9px; text-shadow: 0 0 6px rgba(255,215,0,0.5); animation: fb 1s step-end infinite; z-index: 12; }
+  @keyframes fb { 50%{opacity:0.5} }
+  .freeze-bot { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.92)); padding: 50px 20px 18px; }
+  .freeze-bot h3 { font-family: 'Press Start 2P'; font-size: clamp(9px,1.3vw,13px); color: var(--gold); margin-bottom: 6px; text-shadow: 0 0 8px rgba(255,215,0,0.4); }
+  .freeze-bot p { font-family: 'VT323'; font-size: clamp(16px,1.8vw,22px); color: var(--green); text-shadow: 0 0 6px var(--green-glow); line-height: 1.35; }
+
+  /* GLITCH */
+  .glitch-fx { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
+  .glitch-fx.active { animation: gf 0.12s ease-out; }
+  @keyframes gf { 0%{opacity:0.7} 25%{opacity:0} 50%{opacity:0.35} 100%{opacity:0} }
+  .g-bar { position: absolute; left: 0; width: 100%; background: var(--green); opacity: 0.25; }
+
+  /* NOW PLAYING & TIMELINE */
+  .np-bar { position: absolute; bottom: -44px; left: 50%; transform: translateX(-50%); font-family: 'VT323'; font-size: 18px; white-space: nowrap; color: var(--green); text-shadow: 0 0 8px var(--green-glow); padding: 6px 18px; border: 1px solid rgba(0,255,0,0.15); background: rgba(0,10,0,0.85); }
+  .np-bar .npa { color: var(--gold); }
+  .tl-track { position: absolute; bottom: -64px; left: 50%; transform: translateX(-50%); width: min(88vw, 940px); height: 3px; background: rgba(0,255,0,0.12); border-radius: 2px; }
+  .tl-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--gold), var(--orange)); border-radius: 2px; box-shadow: 0 0 8px var(--green-glow); position: relative; }
+  .tl-fill::after { content: ""; position: absolute; right: -4px; top: -3px; width: 9px; height: 9px; background: var(--gold); border-radius: 50%; box-shadow: 0 0 8px rgba(255,215,0,0.7); }
+  .fm-marks { position: absolute; inset: 0; pointer-events: none; }
+  .fm-m { position: absolute; top: -4px; width: 2px; height: 11px; background: var(--gold); opacity: 0.4; border-radius: 1px; }
+  .tl-intro-zone { position: absolute; top: -1px; left: 0; height: 5px; background: linear-gradient(90deg, rgba(255,215,0,0.15), transparent); border-radius: 2px; pointer-events: none; }
+
+  /* DIRECTION */
+  .dir-ind { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 100; font-family: 'VT323'; font-size: 16px; padding: 3px 12px; border-radius: 3px; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+  .dir-ind.show { opacity: 0.65; }
+  .dir-ind.fwd { color: var(--green); border: 1px solid rgba(0,255,0,0.25); background: rgba(0,15,0,0.8); }
+  .dir-ind.rew { color: var(--orange); border: 1px solid rgba(255,107,0,0.25); background: rgba(20,8,0,0.8); }
+
+  /* ════════════════════════════════════════════════════ */
+  /* AUDIO PLAYER                                         */
+  /* ════════════════════════════════════════════════════ */
+  .audio-player {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    width: 220px;
+    border: 1px solid rgba(0,255,0,0.25);
+    background: rgba(0, 8, 0, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,255,0,0.08), 0 4px 20px rgba(0,0,0,0.5);
+    transition: border-color 0.3s;
+  }
+  .audio-player.visible { display: flex; }
+  .audio-player.playing { border-color: rgba(0,255,0,0.4); }
+
+  .audio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(0,255,0,0.12);
+    background: rgba(0,20,0,0.5);
+  }
+
+  .audio-label {
+    font-family: 'Press Start 2P';
+    font-size: 7px;
+    color: var(--gold);
+    text-shadow: 0 0 6px rgba(255,215,0,0.4);
+    letter-spacing: 1px;
+  }
+
+  .audio-status {
+    font-family: 'Space Mono';
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .audio-status .live-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green-glow);
+    animation: rb 1.5s ease-in-out infinite;
+  }
+
+  .audio-status.paused .live-dot {
+    background: var(--gold);
+    box-shadow: 0 0 6px rgba(255,215,0,0.4);
+    animation: none;
+  }
+
+  .audio-status span {
+    color: var(--green-dim);
+  }
+
+  /* Waveform visualization */
+  .waveform-container {
+    padding: 6px 10px 2px;
+    height: 40px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  #waveformCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 2px;
+  }
+
+  /* Controls row */
+  .audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px 8px;
+  }
+
+  .audio-btn {
+    background: none;
+    border: 1px solid rgba(0,255,0,0.3);
+    color: var(--green);
+    font-family: 'VT323';
+    font-size: 16px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .audio-btn:hover {
+    background: rgba(0,255,0,0.08);
+    border-color: var(--green);
+    text-shadow: 0 0 8px var(--green-glow);
+  }
+
+  .audio-btn.active {
+    background: rgba(0,255,0,0.12);
+    border-color: var(--green);
+    color: var(--gold);
+  }
+
+  /* Volume slider */
+  .vol-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .vol-icon {
+    font-size: 14px;
+    color: var(--green-dim);
+    min-width: 16px;
+    text-align: center;
+  }
+
+  .vol-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 3px;
+    background: var(--green-dark);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(255,215,0,0.5);
+  }
+
+  .vol-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(255,215,0,0.5);
+  }
+
+  /* Audio time */
+  .audio-time {
+    font-family: 'Space Mono';
+    font-size: 10px;
+    color: var(--green-dim);
+    text-align: right;
+    min-width: 36px;
+  }
+
+  /* Unmute prompt */
+  .unmute-prompt {
+    position: fixed;
+    bottom: 80px;
+    left: 16px;
+    z-index: 201;
+    display: none;
+    background: rgba(0,0,0,0.9);
+    border: 1px solid var(--gold);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    max-width: 220px;
+    animation: unmute-pulse 2s ease-in-out infinite;
+  }
+
+  .unmute-prompt.visible { display: block; }
+
+  @keyframes unmute-pulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255,215,0,0.2); }
+    50% { box-shadow: 0 0 25px rgba(255,215,0,0.4); }
+  }
+
+  .unmute-prompt .unmute-text {
+    font-family: 'VT323';
+    font-size: 18px;
+    color: var(--gold);
+    text-shadow: 0 0 8px rgba(255,215,0,0.4);
+  }
+
+  .unmute-prompt .unmute-sub {
+    font-family: 'Space Mono';
+    font-size: 9px;
+    color: var(--green-dim);
+    margin-top: 4px;
+  }
+
+  /* ════════════════════════════════════════════════════ */
+  /* OUTRO                                                */
+  /* ════════════════════════════════════════════════════ */
+  .outro { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px; }
+  .outro h2 { font-family: 'Press Start 2P'; font-size: clamp(14px,2.5vw,28px); background: linear-gradient(135deg, var(--gold), var(--orange)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(0 0 12px rgba(255,215,0,0.4)); margin-bottom: 16px; }
+  .outro p { font-family: 'VT323'; font-size: clamp(16px,1.8vw,24px); color: var(--green-dim); max-width: 480px; line-height: 1.5; text-shadow: 0 0 6px var(--green-glow); }
+  .outro-stats { display: flex; gap: 30px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .stat { border: 1px solid rgba(0,255,0,0.2); padding: 14px 22px; background: var(--green-bg); text-align: center; }
+  .stat .n { font-family: 'Space Mono'; font-size: 28px; color: var(--gold); text-shadow: 0 0 12px rgba(255,215,0,0.3); }
+  .stat .l { font-size: 14px; color: var(--green-dim); margin-top: 3px; }
+  .share-s { margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .again-btn { background: transparent; border: 2px solid var(--gold); color: var(--gold); font-family: 'Press Start 2P'; font-size: 11px; padding: 12px 28px; cursor: pointer; transition: all 0.3s; letter-spacing: 1px; }
+  .again-btn:hover { background: rgba(255,215,0,0.08); box-shadow: 0 0 25px rgba(255,215,0,0.15); text-shadow: 0 0 10px rgba(255,215,0,0.5); }
+
+  .side-d { position: fixed; top: 50%; transform: translateY(-50%); font-family: 'Space Mono'; font-size: 9px; color: var(--green-dim); opacity: 0.2; writing-mode: vertical-rl; letter-spacing: 3px; z-index: 50; }
+  .side-d.l { left: 10px; }
+  .side-d.r { right: 10px; }
+
+  .ptcs { position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+  .ptc { position: absolute; width: 2px; height: 2px; background: var(--green); border-radius: 50%; opacity: 0; animation: fu 7s linear infinite; }
+  @keyframes fu { 0%{transform:translateY(100vh) scale(0);opacity:0} 10%{opacity:0.5} 90%{opacity:0.15} 100%{transform:translateY(-20px) scale(1);opacity:0} }
+
+  @media (max-width: 600px) {
+    .steps { flex-direction: column; align-items: center; }
+    .step-arr { display: none; }
+    .top-bar { padding: 8px 12px; }
+    .audio-player { width: 180px; bottom: 10px; left: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="crt-overlay"></div>
+<div class="scan-bar"></div>
+<div class="ptcs" id="ptcs"></div>
+
+<!-- LANDING -->
+<div id="landingScreen">
+  <div class="landing-bg"><canvas id="bgCanvas"></canvas></div>
+  <div class="landing-content">
+    <div class="brand-line">▸ REWIND PRESENTS ◂</div>
+    <h1 class="main-title"><span class="w1">FREEZE</span><span class="w2">FRAME</span></h1>
+    <p class="tagline">Drop a music video. AI transforms it into a<br>scroll-controlled cinematic experience.</p>
+    <div class="input-container">
+      <div class="url-wrap" id="urlWrap">
+        <div class="url-icon">▶</div>
+        <input type="text" id="urlInput" placeholder="paste a YouTube URL..." autocomplete="off" spellcheck="false">
+        <button class="gen-btn" id="genBtn" disabled>GENERATE</button>
+      </div>
+      <div class="input-err" id="inputErr">⚠ Enter a valid YouTube URL</div>
+      <div class="input-hint">youtube.com/watch?v= or youtu.be/ links</div>
+    </div>
+    <div class="or-div">OR</div>
+    <button class="demo-btn" id="demoBtn">▶ TRY THE DEMO</button>
+    <div class="steps">
+      <div class="step"><div class="step-n">01</div><div class="step-l">Paste a<br>YouTube link</div></div>
+      <div class="step-arr">→</div>
+      <div class="step"><div class="step-n">02</div><div class="step-l">AI extracts<br>key moments</div></div>
+      <div class="step-arr">→</div>
+      <div class="step"><div class="step-n">03</div><div class="step-l">Scroll + listen<br>to experience it</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESSING -->
+<div id="procScreen">
+  <div class="proc-content">
+    <div class="spinner"></div>
+    <div class="proc-title">ANALYZING VIDEO</div>
+    <div class="proc-vid" id="procVid"></div>
+    <div class="progress-container">
+      <div class="prog-bg"><div class="prog-fill" id="progFill"></div></div>
+      <div class="prog-pct" id="progPct">0%</div>
+    </div>
+    <div class="proc-log" id="procLog"></div>
+  </div>
+</div>
+
+<!-- EXPERIENCE -->
+<div id="expScreen">
+  <div class="top-bar">
+    <div class="logo"><span class="logo-m">REWIND</span><span class="logo-s">// FREEZE FRAME</span></div>
+    <div class="top-r">
+      <button class="new-btn" id="newBtn">+ NEW VIDEO</button>
+      <div class="s-hud">
+        <span style="font-size:12px;opacity:0.4">SCROLL</span>
+        <div class="s-bar-c"><div class="s-bar-f" id="sBarF"></div></div>
+        <span class="s-pct" id="sPct">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="side-d l">REWIND ◆ FREEZE FRAME ◆ 2026</div>
+  <div class="side-d r">SCROLL ◆ TO ◆ CONTROL</div>
+
+  <section class="exp-intro">
+    <h1 class="exp-intro-t"><span class="t1">YOUR VIDEO</span><span class="t2">Scroll-Controlled</span></h1>
+    <div class="exp-meta">NOW LOADING: <span class="vt" id="expVT">Demo Experience</span></div>
+    <div class="exp-meta" style="font-size:17px;opacity:0.5">300 FRAMES ◆ 5 FREEZE POINTS ◆ AMBIENT AUDIO</div>
+    <div class="scroll-p">SCROLL DOWN TO BEGIN<span class="ar">⌄</span></div>
+  </section>
+
+  <section class="vid-scroll" id="vidSection">
+    <div class="vid-sticky">
+      <div class="tv-frame">
+        <canvas id="videoCanvas"></canvas>
+        <div class="hud">
+          <div class="hud-ch" id="hudCh">CH 01</div>
+          <div class="hud-rec"><span class="dot"></span>SCROLL•PLAY</div>
+          <div class="hud-tc" id="hudTc">00:00:00:00</div>
+          <div class="hud-fr" id="hudFr">FRM 0000</div>
+        </div>
+        <div class="phase-badge intro-phase" id="phaseBadge">◆ REWIND INTRO ◆</div>
+        <div class="freeze-ov" id="freezeOv">
+          <div class="freeze-badge">◆ FREEZE FRAME ◆</div>
+          <div class="freeze-bot"><h3 id="fTitle"></h3><p id="fDesc"></p></div>
+        </div>
+        <div class="glitch-fx" id="glitchFx">
+          <div class="g-bar" style="top:12%;height:3px"></div>
+          <div class="g-bar" style="top:33%;height:2px"></div>
+          <div class="g-bar" style="top:54%;height:4px"></div>
+          <div class="g-bar" style="top:71%;height:2px"></div>
+          <div class="g-bar" style="top:89%;height:3px"></div>
+        </div>
+      </div>
+      <div class="np-bar">▶ <span class="npa" id="npA">REWIND DEMO</span> — <span id="npT">"Parallax Dreams"</span></div>
+      <div class="tl-track">
+        <div class="tl-intro-zone" id="tlIntro" style="width:28.5%"></div>
+        <div class="tl-fill" id="tlFill"></div>
+        <div class="fm-marks" id="fmMarks"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="outro">
+    <h2>YOU SCROLLED<br>THROUGH TIME</h2>
+    <p>The audio played on while your scroll controlled every frame. Two layers. One experience.</p>
+    <div class="outro-stats">
+      <div class="stat"><div class="n" id="sF">0</div><div class="l">FRAMES</div></div>
+      <div class="stat"><div class="n" id="sFz">0</div><div class="l">FREEZES</div></div>
+      <div class="stat"><div class="n" id="sD">0</div><div class="l">REWINDS</div></div>
+    </div>
+    <div class="share-s">
+      <p>Create your own from any music video</p>
+      <button class="again-btn" id="againBtn">↻ NEW VIDEO</button>
+    </div>
+  </section>
+</div>
+
+<!-- AUDIO PLAYER -->
+<div class="audio-player" id="audioPlayer">
+  <div class="audio-header">
+    <span class="audio-label">♫ AUDIO</span>
+    <div class="audio-status" id="audioStatus">
+      <span class="live-dot"></span>
+      <span id="audioStatusText">PLAYING</span>
+    </div>
+  </div>
+  <div class="waveform-container" id="waveformContainer">
+    <canvas id="waveformCanvas"></canvas>
+  </div>
+  <div class="audio-controls">
+    <button class="audio-btn" id="playPauseBtn" title="Play/Pause">▶</button>
+    <div class="vol-wrap">
+      <span class="vol-icon" id="volIcon">♪</span>
+      <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="75">
+    </div>
+    <span class="audio-time" id="audioTime">0:00</span>
+  </div>
+</div>
+
+<!-- UNMUTE PROMPT -->
+<div class="unmute-prompt" id="unmutePrompt">
+  <div class="unmute-text">🔊 TAP TO UNMUTE</div>
+  <div class="unmute-sub">Audio plays continuously while you scroll</div>
+</div>
+
+<div class="dir-ind" id="dirInd"></div>
+
+<script>
+// ════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════
+const TOTAL_FRAMES = 300;
+const INTRO_FRAMES = 90;
+const W = 1280, H = 720;
+const CROSSFADE_FRAMES = 20;
+
+const FREEZE_MOMENTS = [
+  { at: 0.12, title: "THE OPENING SHOT", desc: "Where every great story begins — a single frame that sets the mood for everything to come." },
+  { at: 0.32, title: "THE CRESCENDO", desc: "The moment the beat drops and the visual language shifts. Colors explode. Energy peaks." },
+  { at: 0.52, title: "THE TURNING POINT", desc: "Every music video has one — the frame where the narrative pivots and nothing is the same." },
+  { at: 0.72, title: "THE ICONIC FRAME", desc: "This is the screenshot. The one everyone shares. The frame that defines the era." },
+  { at: 0.92, title: "THE FINAL CHORD", desc: "The last breath before fade to black. A single frozen moment suspended in time." },
+];
+
+let currentFrame = 0, lastFrame = -1, lastScrollY = 0;
+let dirChanges = 0, lastDir = 0;
+let freezesHit = new Set(), totalRendered = 0;
+
+const canvas = document.getElementById('videoCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = W; canvas.height = H;
+
+// ════════════════════════════════════════
+// AUDIO SYSTEM
+// Using Web Audio API to generate ambient synth
+// In production: loads extracted audio from CDN
+// ════════════════════════════════════════
+let audioCtx = null;
+let audioPlaying = false;
+let audioMuted = true;
+let audioStartTime = 0;
+let masterGain = null;
+let oscillators = [];
+let audioInitialized = false;
+
+function initAudio() {
+  if (audioInitialized) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0;
+  masterGain.connect(audioCtx.destination);
+
+  // Create ambient synth layers
+  const notes = [
+    { freq: 65.41, type: 'sine', gain: 0.12 },      // C2 — deep bass drone
+    { freq: 130.81, type: 'sine', gain: 0.08 },     // C3 — mid bass
+    { freq: 196.00, type: 'triangle', gain: 0.05 },  // G3 — fifth
+    { freq: 261.63, type: 'sine', gain: 0.04 },      // C4 — root
+    { freq: 329.63, type: 'sine', gain: 0.03 },      // E4 — major third
+    { freq: 523.25, type: 'triangle', gain: 0.02 },  // C5 — high shimmer
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = note.type;
+    osc.frequency.value = note.freq;
+    gain.gain.value = note.gain;
+
+    // Add slow vibrato
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    lfo.frequency.value = 0.1 + Math.random() * 0.3;
+    lfoGain.gain.value = note.freq * 0.008;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfo.start();
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+
+    oscillators.push({ osc, gain, lfo });
+  });
+
+  // Add filtered noise layer for texture
+  const bufferSize = audioCtx.sampleRate * 2;
+  const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * 0.015;
+  }
+
+  const noiseNode = audioCtx.createBufferSource();
+  noiseNode.buffer = noiseBuffer;
+  noiseNode.loop = true;
+
+  const noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'lowpass';
+  noiseFilter.frequency.value = 400;
+
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.value = 0.3;
+
+  noiseNode.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseNode.start();
+
+  audioInitialized = true;
+  audioStartTime = audioCtx.currentTime;
+}
+
+function startAudio() {
+  if (!audioInitialized) initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+  masterGain.gain.setTargetAtTime(0.75, audioCtx.currentTime, 0.5);
+  audioPlaying = true;
+  audioMuted = false;
+  updateAudioUI();
+}
+
+function pauseAudio() {
+  if (!audioInitialized) return;
+  masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+  masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
+  audioPlaying = false;
+  updateAudioUI();
+}
+
+function toggleAudio() {
+  if (audioPlaying) pauseAudio();
+  else startAudio();
+}
+
+function setVolume(v) {
+  if (!audioInitialized) return;
+  const vol = v / 100;
+  masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+  masterGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.05);
+}
+
+function updateAudioUI() {
+  const btn = document.getElementById('playPauseBtn');
+  const status = document.getElementById('audioStatus');
+  const statusText = document.getElementById('audioStatusText');
+  const player = document.getElementById('audioPlayer');
+
+  btn.textContent = audioPlaying ? '❚❚' : '▶';
+  btn.classList.toggle('active', audioPlaying);
+  statusText.textContent = audioPlaying ? 'PLAYING' : 'PAUSED';
+  status.classList.toggle('paused', !audioPlaying);
+  player.classList.toggle('playing', audioPlaying);
+}
+
+// Audio time display
+function updateAudioTime() {
+  if (!audioInitialized || !audioPlaying) return;
+  const elapsed = audioCtx.currentTime - audioStartTime;
+  const m = Math.floor(elapsed / 60);
+  const s = Math.floor(elapsed % 60);
+  document.getElementById('audioTime').textContent = `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ════════════════════════════════════════
+// WAVEFORM VISUALIZATION
+// ════════════════════════════════════════
+const wvCanvas = document.getElementById('waveformCanvas');
+const wvCtx = wvCanvas.getContext('2d');
+let wvBars = [];
+const WV_BAR_COUNT = 40;
+
+function initWaveform() {
+  const rect = wvCanvas.parentElement.getBoundingClientRect();
+  wvCanvas.width = rect.width * 2;
+  wvCanvas.height = rect.height * 2;
+  wvBars = Array.from({ length: WV_BAR_COUNT }, () => ({
+    value: 0.1 + Math.random() * 0.2,
+    target: 0.1 + Math.random() * 0.2,
+    speed: 0.02 + Math.random() * 0.04,
+  }));
+}
+
+function drawWaveform() {
+  const w = wvCanvas.width;
+  const h = wvCanvas.height;
+  wvCtx.clearRect(0, 0, w, h);
+
+  const barW = (w / WV_BAR_COUNT) - 2;
+  const isPlaying = audioPlaying;
+
+  wvBars.forEach((bar, i) => {
+    // Animate towards target
+    if (isPlaying) {
+      if (Math.random() < 0.08) {
+        bar.target = 0.15 + Math.random() * 0.85;
+      }
+      bar.value += (bar.target - bar.value) * bar.speed * (isPlaying ? 3 : 0.5);
+    } else {
+      bar.target = 0.05 + Math.random() * 0.08;
+      bar.value += (bar.target - bar.value) * 0.05;
+    }
+
+    const barH = bar.value * h;
+    const x = i * (barW + 2) + 1;
+    const y = (h - barH) / 2;
+
+    // Color gradient based on position
+    const t = i / WV_BAR_COUNT;
+    const r = Math.floor(t * 255);
+    const g = Math.floor(255 - t * 100);
+    const b = 0;
+    const alpha = isPlaying ? (0.5 + bar.value * 0.5) : 0.2;
+
+    wvCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    wvCtx.fillRect(x, y, barW, barH);
+
+    // Glow on peaks
+    if (isPlaying && bar.value > 0.6) {
+      wvCtx.shadowColor = `rgba(${r}, ${g}, 0, 0.6)`;
+      wvCtx.shadowBlur = 6;
+      wvCtx.fillRect(x, y, barW, barH);
+      wvCtx.shadowBlur = 0;
+    }
+  });
+
+  // Center line
+  wvCtx.fillStyle = `rgba(0, 255, 0, ${isPlaying ? 0.15 : 0.06})`;
+  wvCtx.fillRect(0, h / 2 - 0.5, w, 1);
+
+  requestAnimationFrame(drawWaveform);
+}
+
+// ════════════════════════════════════════
+// INTRO RENDERER
+// ════════════════════════════════════════
+function drawIntroFrame(n) {
+  const t = n / INTRO_FRAMES;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+
+  const hue = 140 + t * 40;
+  const sat = 60 + t * 20;
+  const light = 5 + t * 10;
+
+  const bg = ctx.createRadialGradient(W/2 + Math.sin(t*Math.PI*3)*150, H/2 + Math.cos(t*Math.PI*2)*100, 20, W/2, H/2, W*0.8);
+  bg.addColorStop(0, `hsla(${hue},${sat}%,${light+8}%,0.9)`);
+  bg.addColorStop(0.4, `hsla(${hue+30},${sat-10}%,${light}%,0.6)`);
+  bg.addColorStop(1, `hsla(${hue+60},30%,2%,1)`);
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // Rings
+  ctx.save();
+  const rc = Math.floor(3 + t * 8);
+  for (let r = 0; r < rc; r++) {
+    const rt = (t*3 + r*0.15) % 1;
+    const radius = rt * W * 0.6;
+    ctx.beginPath(); ctx.arc(W/2, H/2, radius, 0, Math.PI*2);
+    ctx.strokeStyle = `hsla(${hue+r*15},80%,55%,${(1-rt)*0.2*Math.min(t*3,1)})`;
+    ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  ctx.restore();
+
+  // Lattice
+  ctx.save();
+  ctx.translate(W/2, H/2); ctx.rotate(t*Math.PI*1.5);
+  const la = Math.min(t*2, 0.6);
+  const nl = 12 + Math.floor(t*8);
+  for (let i = 0; i < nl; i++) {
+    const a = (i/nl)*Math.PI*2;
+    const len = 100 + t*350;
+    const w = Math.sin(t*Math.PI*6+i*0.8)*30*t;
+    ctx.beginPath(); ctx.moveTo(0,0);
+    ctx.lineTo(Math.cos(a)*(len+w), Math.sin(a)*(len+w));
+    ctx.strokeStyle = `hsla(${hue+i*5},70%,50%,${la*0.3})`;
+    ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.restore();
+
+  // Polygon
+  ctx.save();
+  ctx.translate(W/2, H/2); ctx.rotate(-t*Math.PI);
+  const ps = 40+t*160;
+  const sides = 3+Math.floor(t*5);
+  const pa = Math.min(t*2.5, 1);
+
+  const glow = ctx.createRadialGradient(0,0,0,0,0,ps*2);
+  glow.addColorStop(0, `hsla(45,90%,55%,${pa*0.4})`);
+  glow.addColorStop(0.4, `hsla(120,80%,40%,${pa*0.15})`);
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow; ctx.fillRect(-ps*3,-ps*3,ps*6,ps*6);
+
+  ctx.beginPath();
+  for(let i=0;i<=sides;i++){
+    const a=(i/sides)*Math.PI*2-Math.PI/2;
+    const w=Math.sin(t*Math.PI*8+i*1.2)*12*t;
+    const x=Math.cos(a)*(ps+w), y=Math.sin(a)*(ps+w);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.strokeStyle=`hsla(45,90%,65%,${pa*0.9})`;
+  ctx.lineWidth=2.5; ctx.shadowColor=`hsla(45,90%,55%,${pa*0.7})`; ctx.shadowBlur=35; ctx.stroke();
+
+  const isz = ps*(0.3+0.15*Math.sin(t*Math.PI*4));
+  ctx.beginPath();
+  for(let i=0;i<=sides;i++){
+    const a=(i/sides)*Math.PI*2+t*Math.PI*2;
+    const x=Math.cos(a)*isz, y=Math.sin(a)*isz;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.strokeStyle=`hsla(120,80%,55%,${pa*0.6})`;
+  ctx.lineWidth=1.5; ctx.shadowColor=`hsla(120,80%,50%,${pa*0.5})`; ctx.shadowBlur=25; ctx.stroke();
+  ctx.restore();
+
+  // Particles
+  ctx.save();
+  for(let i=0;i<Math.floor(10+t*30);i++){
+    const s=i*7919;
+    const px=((s*13+n*(1.5+i%3))%W), py=((s*17+n*(1+i%2))%H);
+    const al=(0.1+0.3*Math.sin(t*Math.PI*2+i))*Math.min(t*3,1);
+    ctx.fillStyle=i%2===0?`hsla(45,80%,65%,${al})`:`hsla(120,70%,55%,${al})`;
+    ctx.beginPath(); ctx.arc(px,py,1+(s%2),0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  // REWIND text
+  const tFI = Math.max(0, Math.min(1, (t-0.25)*4));
+  const tFO = Math.max(0, Math.min(1, (1-t)*3));
+  const tA = tFI * tFO;
+  if(tA > 0.01){
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`bold ${60+t*20}px 'Press Start 2P',monospace`;
+    const tG = ctx.createLinearGradient(W/2-200,0,W/2+200,0);
+    tG.addColorStop(0,`rgba(255,215,0,${tA})`);
+    tG.addColorStop(0.5,`rgba(255,165,0,${tA})`);
+    tG.addColorStop(1,`rgba(255,215,0,${tA})`);
+    ctx.fillStyle=tG; ctx.shadowColor=`rgba(255,215,0,${tA*0.6})`; ctx.shadowBlur=40;
+    ctx.fillText('REWIND',W/2,H/2-20);
+    ctx.font=`24px 'VT323',monospace`;
+    ctx.fillStyle=`rgba(0,255,0,${tA*0.7})`;
+    ctx.shadowColor=`rgba(0,255,0,${tA*0.4})`; ctx.shadowBlur=20;
+    ctx.fillText('FREEZE FRAME EXPERIENCE',W/2,H/2+35);
+    ctx.restore();
+  }
+
+  const vig = ctx.createRadialGradient(W/2,H/2,W*0.15,W/2,H/2,W*0.65);
+  vig.addColorStop(0,'transparent'); vig.addColorStop(1,'rgba(0,0,0,0.65)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,W,H);
+  totalRendered++;
+}
+
+// ════════════════════════════════════════
+// VIDEO RENDERER
+// ════════════════════════════════════════
+function drawVideoFrame(n) {
+  const vf = TOTAL_FRAMES-INTRO_FRAMES;
+  const t = n/vf;
+  const phase = Math.floor(t*5);
+  const pt = (t*5)%1;
+  const h1 = (phase*55+pt*35+200)%360;
+  const h2 = (h1+120)%360;
+
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  const bg = ctx.createRadialGradient(W*(0.3+0.4*Math.sin(t*Math.PI*2)),H*(0.3+0.4*Math.cos(t*Math.PI*1.5)),40,W/2,H/2,W*0.8);
+  bg.addColorStop(0,`hsla(${h1},80%,15%,1)`);
+  bg.addColorStop(0.5,`hsla(${h2},60%,7%,1)`);
+  bg.addColorStop(1,`hsla(${(h1+60)%360},40%,3%,1)`);
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  ctx.save(); ctx.globalAlpha=0.25+0.25*Math.sin(t*Math.PI*4);
+  const gc=8+phase*3; ctx.strokeStyle=`hsla(${h1},70%,50%,0.12)`; ctx.lineWidth=1;
+  for(let i=0;i<gc;i++){const a=(i/gc)*Math.PI+t*Math.PI;const cx=W/2+Math.cos(t*3)*100,cy=H/2+Math.sin(t*2)*80;ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*W,cy+Math.sin(a)*H);ctx.lineTo(cx-Math.cos(a)*W,cy-Math.sin(a)*H);ctx.stroke();}
+  ctx.restore();
+
+  ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(t*Math.PI*2);
+  const sz=80+120*Math.sin(t*Math.PI*2)+phase*20;
+  const sides=3+phase;
+  const ig=ctx.createRadialGradient(0,0,0,0,0,sz*1.5);
+  ig.addColorStop(0,`hsla(${h1},90%,60%,0.7)`); ig.addColorStop(0.5,`hsla(${h2},80%,40%,0.25)`); ig.addColorStop(1,'transparent');
+  ctx.fillStyle=ig; ctx.fillRect(-sz*2,-sz*2,sz*4,sz*4);
+  ctx.beginPath();
+  for(let i=0;i<=sides;i++){const a=(i/sides)*Math.PI*2-Math.PI/2;const w=Math.sin(t*Math.PI*6+i)*15;const x=Math.cos(a)*(sz+w),y=Math.sin(a)*(sz+w);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.closePath(); ctx.strokeStyle=`hsla(${h1},90%,70%,0.85)`; ctx.lineWidth=2; ctx.shadowColor=`hsla(${h1},90%,60%,0.7)`; ctx.shadowBlur=30; ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  for(let i=0;i<25+phase*8;i++){const s=i*7919;const px=((s*13+(n+INTRO_FRAMES)*(2+i%3))%W),py=((s*17+(n+INTRO_FRAMES)*(1+i%2))%H);const al=0.15+0.4*Math.sin(t*Math.PI*2+i);ctx.fillStyle=i%3===0?`hsla(${h1},80%,70%,${al})`:i%3===1?`hsla(${h2},70%,60%,${al})`:`hsla(0,0%,100%,${al*0.4})`;ctx.beginPath();ctx.arc(px,py,1+(s%3),0,Math.PI*2);ctx.fill();}
+  ctx.restore();
+
+  for(let i=0;i<10;i++){const by=(H/10)*i;const amp=18*Math.sin(t*Math.PI*4+i*0.5);const ba=0.04+0.08*Math.abs(Math.sin(t*Math.PI*3+i));ctx.fillStyle=`hsla(${h1+i*10},60%,50%,${ba})`;ctx.fillRect(0,by+amp,W,2+Math.abs(amp)*0.3);}
+
+  if(phase===1){for(let r=0;r<5;r++){const rr=(pt*400+r*80)%500;ctx.beginPath();ctx.arc(W/2,H/2,rr,0,Math.PI*2);ctx.strokeStyle=`hsla(${h1},90%,60%,${0.25-rr/1600})`;ctx.lineWidth=2;ctx.stroke();}}
+  else if(phase===3){ctx.save();ctx.font=`bold ${80+pt*40}px 'VT323',monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=`hsla(${h1},80%,60%,${0.06+pt*0.04})`;ctx.fillText('REWIND',W/2,H/2);ctx.restore();}
+
+  const v=ctx.createRadialGradient(W/2,H/2,W*0.2,W/2,H/2,W*0.7);
+  v.addColorStop(0,'transparent'); v.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+  totalRendered++;
+}
+
+// ════════════════════════════════════════
+// CROSSFADE
+// ════════════════════════════════════════
+function drawCompositeFrame(gf) {
+  const cs = INTRO_FRAMES - CROSSFADE_FRAMES;
+  if(gf < cs) { drawIntroFrame(gf); }
+  else if(gf < INTRO_FRAMES) {
+    const ft = (gf - cs) / CROSSFADE_FRAMES;
+    drawIntroFrame(gf);
+    const id = ctx.getImageData(0,0,W,H);
+    drawVideoFrame(Math.floor(ft*15));
+    const vd = ctx.getImageData(0,0,W,H);
+    const e = ft*ft*(3-2*ft);
+    const out = ctx.createImageData(W,H);
+    for(let i=0;i<id.data.length;i+=4){
+      out.data[i]=id.data[i]*(1-e)+vd.data[i]*e;
+      out.data[i+1]=id.data[i+1]*(1-e)+vd.data[i+1]*e;
+      out.data[i+2]=id.data[i+2]*(1-e)+vd.data[i+2]*e;
+      out.data[i+3]=255;
+    }
+    ctx.putImageData(out,0,0);
+    if(Math.abs(ft-0.5)<0.05){ctx.fillStyle=`rgba(255,215,0,${0.15*(1-Math.abs(ft-0.5)*20)})`;ctx.fillRect(0,0,W,H);}
+  } else { drawVideoFrame(gf - INTRO_FRAMES); }
+}
+
+// ════════════════════════════════════════
+// LANDING BG
+// ════════════════════════════════════════
+const bgC=document.getElementById('bgCanvas');
+const bgX=bgC.getContext('2d');
+bgC.width=400;bgC.height=300;
+let bgF=0;
+function animBg(){
+  if(document.getElementById('landingScreen').classList.contains('hidden'))return;
+  bgF++;const t=bgF/200;bgX.fillStyle='#000';bgX.fillRect(0,0,400,300);
+  const h=(bgF*0.5)%360;
+  const g=bgX.createRadialGradient(200+Math.sin(t)*80,150+Math.cos(t)*60,10,200,150,200);
+  g.addColorStop(0,`hsla(${h},70%,20%,0.8)`);g.addColorStop(1,'transparent');
+  bgX.fillStyle=g;bgX.fillRect(0,0,400,300);
+  for(let i=0;i<5;i++){const a=(i/5)*Math.PI*2+t;const r=50+30*Math.sin(t*2+i);bgX.beginPath();bgX.arc(200+Math.cos(a)*r,150+Math.sin(a)*r,20+10*Math.sin(t+i),0,Math.PI*2);bgX.strokeStyle=`hsla(${h+i*30},60%,50%,0.2)`;bgX.stroke();}
+  requestAnimationFrame(animBg);
+}
+animBg();
+
+// ════════════════════════════════════════
+// URL VALIDATION
+// ════════════════════════════════════════
+const urlIn=document.getElementById('urlInput');
+const genBtn=document.getElementById('genBtn');
+const urlWrap=document.getElementById('urlWrap');
+const inErr=document.getElementById('inputErr');
+function isYT(s){return /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]+/.test(s);}
+function getVid(u){const m=u.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);return m?m[1]:null;}
+urlIn.addEventListener('input',()=>{const v=urlIn.value.trim();genBtn.disabled=!isYT(v);urlWrap.classList.toggle('err',v.length>5&&!isYT(v));inErr.classList.toggle('show',v.length>5&&!isYT(v));});
+urlIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!genBtn.disabled)startGen();});
+genBtn.addEventListener('click',startGen);
+
+// ════════════════════════════════════════
+// PROCESSING
+// ════════════════════════════════════════
+const STEPS=[
+  {msg:"Connecting to YouTube API...",pct:5,d:400},
+  {msg:'<span class="ok">✓</span> Video found — resolving metadata',pct:10,d:600},
+  {msg:'<span class="ok">✓</span> Title extracted — initializing pipeline',pct:15,d:500},
+  {msg:'<span class="wk">⟳</span> Downloading video (720p)...',pct:20,d:800},
+  {msg:'<span class="wk">⟳</span> Download: 50%...',pct:32,d:600},
+  {msg:'<span class="ok">✓</span> Download complete',pct:42,d:500},
+  {msg:'<span class="wk">⟳</span> ffmpeg: extracting audio track → Opus 128k...',pct:47,d:500},
+  {msg:'<span class="ok">✓</span> Audio extracted — 3:42 duration, 847kb',pct:51,d:400},
+  {msg:'<span class="wk">⟳</span> ffmpeg scene detection (threshold: 0.03)...',pct:56,d:700},
+  {msg:'<span class="ok">✓</span> 847 scenes → selecting 300 key frames',pct:62,d:500},
+  {msg:'<span class="wk">⟳</span> librosa beat detection on audio...',pct:66,d:600},
+  {msg:'<span class="ok">✓</span> 12 peaks, 4 drops, 2 silences mapped',pct:70,d:400},
+  {msg:'<span class="wk">⟳</span> Sending 20 frames to Claude Vision API...',pct:75,d:800},
+  {msg:'<span class="wk">⟳</span> Claude analyzing visual composition...',pct:80,d:900},
+  {msg:'<span class="ok">✓</span> 5 iconic freeze moments identified',pct:85,d:400},
+  {msg:'<span class="wk">⟳</span> k-means color extraction for REWIND intro...',pct:88,d:400},
+  {msg:'<span class="wk">⟳</span> Optimizing → WebP + audio CDN upload...',pct:93,d:500},
+  {msg:'<span class="ok">✓</span> Manifest generated — audio + frames synced',pct:97,d:300},
+  {msg:'<span class="ok">✓</span> <span style="color:#ffd700">EXPERIENCE READY — LAUNCHING</span>',pct:100,d:500},
+];
+
+async function runProc(vidId){
+  const ps=document.getElementById('procScreen');ps.classList.add('active');
+  document.getElementById('procVid').textContent=vidId?`youtube.com/watch?v=${vidId}`:'demo mode';
+  const log=document.getElementById('procLog');log.innerHTML='';
+  document.getElementById('progFill').style.width='0%';
+  document.getElementById('progPct').textContent='0%';
+  for(const s of STEPS){
+    await new Promise(r=>setTimeout(r,s.d));
+    const l=document.createElement('div');l.className='ll';
+    l.innerHTML=`<span style="color:#00aa00">[${new Date().toLocaleTimeString()}]</span> ${s.msg}`;
+    log.appendChild(l);log.scrollTop=log.scrollHeight;
+    document.getElementById('progFill').style.width=s.pct+'%';
+    document.getElementById('progPct').textContent=s.pct+'%';
+  }
+  await new Promise(r=>setTimeout(r,600));
+  ps.classList.remove('active');
+}
+
+// ════════════════════════════════════════
+// LAUNCH
+// ════════════════════════════════════════
+async function startGen(){
+  const url=urlIn.value.trim();const vidId=getVid(url);
+  document.getElementById('landingScreen').classList.add('hidden');
+  await runProc(vidId);
+  launch(vidId?`Video ${vidId}`:'Demo Experience',vidId?'YOUR VIDEO':'REWIND DEMO',vidId?'AI-Generated Experience':'Parallax Dreams');
+}
+
+async function startDemo(){
+  document.getElementById('landingScreen').classList.add('hidden');
+  await runProc(null);
+  launch('Demo Experience','REWIND DEMO','Parallax Dreams');
+}
+
+function launch(title, artist, track){
+  document.getElementById('expScreen').classList.add('active');
+  document.getElementById('expVT').textContent=title;
+  document.getElementById('npA').textContent=artist;
+  document.getElementById('npT').textContent=`"${track}"`;
+
+  const fm=document.getElementById('fmMarks');fm.innerHTML='';
+  const ir=INTRO_FRAMES/TOTAL_FRAMES;
+  FREEZE_MOMENTS.forEach(f=>{const m=document.createElement('div');m.className='fm-m';m.style.left=(ir+f.at*(1-ir))*100+'%';fm.appendChild(m);});
+  document.getElementById('tlIntro').style.width=ir*100+'%';
+
+  // Show audio player + unmute prompt
+  document.getElementById('audioPlayer').classList.add('visible');
+  document.getElementById('unmutePrompt').classList.add('visible');
+
+  // Init audio (but don't play yet — browser requires user gesture)
+  initAudio();
+  initWaveform();
+  drawWaveform();
+
+  drawCompositeFrame(0);
+  window.scrollTo(0,0);
+}
+
+function reset(){
+  document.getElementById('expScreen').classList.remove('active');
+  document.getElementById('landingScreen').classList.remove('hidden');
+  document.getElementById('audioPlayer').classList.remove('visible');
+  document.getElementById('unmutePrompt').classList.remove('visible');
+  if(audioPlaying) pauseAudio();
+  urlIn.value='';genBtn.disabled=true;
+  freezesHit.clear();dirChanges=0;totalRendered=0;lastDir=0;
+  window.scrollTo(0,0);
+  animBg();
+}
+
+document.getElementById('demoBtn').addEventListener('click',startDemo);
+document.getElementById('newBtn').addEventListener('click',reset);
+document.getElementById('againBtn').addEventListener('click',reset);
+
+// ════════════════════════════════════════
+// AUDIO CONTROLS
+// ════════════════════════════════════════
+document.getElementById('playPauseBtn').addEventListener('click',()=>{
+  document.getElementById('unmutePrompt').classList.remove('visible');
+  toggleAudio();
+});
+
+document.getElementById('unmutePrompt').addEventListener('click',()=>{
+  document.getElementById('unmutePrompt').classList.remove('visible');
+  startAudio();
+});
+
+document.getElementById('volSlider').addEventListener('input',(e)=>{
+  const v = parseInt(e.target.value);
+  setVolume(v);
+  const icon = document.getElementById('volIcon');
+  icon.textContent = v === 0 ? '✕' : v < 30 ? '♩' : v < 70 ? '♪' : '♫';
+});
+
+document.getElementById('waveformContainer').addEventListener('click',()=>{
+  document.getElementById('unmutePrompt').classList.remove('visible');
+  toggleAudio();
+});
+
+setInterval(updateAudioTime, 500);
+
+// ════════════════════════════════════════
+// SCROLL HANDLER
+// ════════════════════════════════════════
+const vidSection=document.getElementById('vidSection');
+let dirTo;
+
+function onScroll(){
+  if(!document.getElementById('expScreen').classList.contains('active'))return;
+  const sy=window.scrollY;
+  const dir=sy>lastScrollY?1:sy<lastScrollY?-1:0;
+  if(dir!==0&&dir!==lastDir){if(lastDir!==0)dirChanges++;lastDir=dir;}
+  const di=document.getElementById('dirInd');
+  if(dir!==0){di.className='dir-ind show '+(dir>0?'fwd':'rew');di.textContent=dir>0?'▶▶ PLAY':'◀◀ REWIND';clearTimeout(dirTo);dirTo=setTimeout(()=>di.classList.remove('show'),500);}
+  lastScrollY=sy;
+
+  const sTop=vidSection.offsetTop;
+  const sH=vidSection.offsetHeight-window.innerHeight;
+  const prog=Math.max(0,Math.min(1,(sy-sTop)/sH));
+  const pageP=sy/(document.body.scrollHeight-window.innerHeight);
+  document.getElementById('sBarF').style.width=pageP*100+'%';
+  document.getElementById('sPct').textContent=Math.round(pageP*100)+'%';
+
+  currentFrame=Math.round(prog*(TOTAL_FRAMES-1));
+  document.getElementById('tlFill').style.width=prog*100+'%';
+
+  const ts=currentFrame/30;
+  const mn=Math.floor(ts/60),sc=Math.floor(ts%60),fr=currentFrame%30;
+  document.getElementById('hudTc').textContent=`00:${String(mn).padStart(2,'0')}:${String(sc).padStart(2,'0')}:${String(fr).padStart(2,'0')}`;
+  document.getElementById('hudFr').textContent=`FRM ${String(currentFrame).padStart(4,'0')}`;
+
+  const pb=document.getElementById('phaseBadge');
+  const inIntro=currentFrame<INTRO_FRAMES;
+  if(inIntro){pb.className='phase-badge intro-phase';pb.textContent='◆ REWIND INTRO ◆';document.getElementById('hudCh').textContent='INTRO';}
+  else{pb.className='phase-badge video-phase';pb.textContent='◆ NOW PLAYING ◆';document.getElementById('hudCh').textContent='CH 01';}
+
+  const introR=INTRO_FRAMES/TOTAL_FRAMES;
+  const vProg=inIntro?-1:(prog-introR)/(1-introR);
+  let inF=false;
+  if(!inIntro){for(const fm of FREEZE_MOMENTS){if(Math.abs(vProg-fm.at)<0.018){document.getElementById('freezeOv').classList.add('active');document.getElementById('fTitle').textContent=fm.title;document.getElementById('fDesc').textContent=fm.desc;freezesHit.add(fm.at);inF=true;break;}}}
+  if(!inF)document.getElementById('freezeOv').classList.remove('active');
+
+  const gfx=document.getElementById('glitchFx');
+  if(Math.abs(currentFrame-lastFrame)>5){gfx.classList.remove('active');void gfx.offsetWidth;gfx.classList.add('active');}
+
+  if(currentFrame!==lastFrame){drawCompositeFrame(currentFrame);lastFrame=currentFrame;}
+}
+
+window.addEventListener('scroll',()=>requestAnimationFrame(onScroll));
+setInterval(()=>{document.getElementById('sF').textContent=totalRendered.toLocaleString();document.getElementById('sFz').textContent=freezesHit.size;document.getElementById('sD').textContent=dirChanges;},400);
+
+// Particles
+const pc=document.getElementById('ptcs');
+for(let i=0;i<25;i++){const p=document.createElement('div');p.className='ptc';p.style.left=Math.random()*100+'%';p.style.animationDelay=Math.random()*7+'s';p.style.animationDuration=5+Math.random()*5+'s';if(Math.random()>0.7)p.style.background='var(--gold)';pc.appendChild(p);}
+</script>
+</body>
+</html>
