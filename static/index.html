@@ -660,7 +660,6 @@ let currentFrame = 0, lastFrame = -1, lastScrollY = 0;
 let dirChanges = 0, lastDir = 0;
 let freezesHit = new Set(), totalRendered = 0;
 let scrollLocked = false, lockedScrollY = 0, lockReleaseAttempts = 0;
-let userReleased = true; // Track if user has released touch/mouse/key
 
 const canvas = document.getElementById('videoCanvas');
 const ctx = canvas.getContext('2d');
@@ -1608,35 +1607,22 @@ function onScroll(){
   keepAudioAlive();
 
   const sy=window.scrollY;
-  const dir=sy>lastScrollY?1:sy<lastScrollY?-1:0;
 
-  // AGGRESSIVE FREEZE LOCK - Hard stop on freeze moments (forward only)
+  // FREEZE POINT SCROLL PAUSE - Creates a natural stop at freeze moments
   if(scrollLocked){
-    // Always allow scrolling UP (rewinding) - escape hatch
-    if(dir === -1){
+    // Any scroll attempt releases the lock - creates brief pause without blocking
+    if(Math.abs(sy - lockedScrollY) > 10){
       scrollLocked = false;
-      userReleased = true;
-      console.log('[FREEZE] Released by scrolling up');
-    }
-    // Scrolling down while locked - check for release
-    else if(dir === 1){
-      if(userReleased){
-        // User released and scrolled down again - unlock!
-        scrollLocked = false;
-        userReleased = true;
-        console.log('[FREEZE] Released - user re-initiated scroll');
-      } else {
-        // Still holding - force back to lock position
-        window.scrollTo(0, lockedScrollY);
-        return;
-      }
-    }
-    // No direction or locked - maintain position
-    else {
+      lockReleaseAttempts = 0;
+      console.log('[FREEZE] Pause released - continuing naturally');
+    } else {
+      // Maintain position briefly to create the "freeze" effect
       window.scrollTo(0, lockedScrollY);
       return;
     }
   }
+
+  const dir=sy>lastScrollY?1:sy<lastScrollY?-1:0;
   if(dir!==0&&dir!==lastDir){if(lastDir!==0)dirChanges++;lastDir=dir;}
   const di=document.getElementById('dirInd');
   if(dir!==0){di.className='dir-ind show '+(dir>0?'fwd':'rew');di.textContent=dir>0?'▶▶ PLAY':'◀◀ REWIND';clearTimeout(dirTo);dirTo=setTimeout(()=>di.classList.remove('show'),500);}
@@ -1672,13 +1658,12 @@ function onScroll(){
         document.getElementById('fTitle').textContent=fm.title;
         document.getElementById('fDesc').textContent=fm.desc;
 
-        // Lock scroll on first encounter ONLY when scrolling DOWN (forward playback)
-        if(!freezesHit.has(fm.at) && !scrollLocked && dir === 1){
+        // Lock scroll on first encounter with this freeze moment
+        if(!freezesHit.has(fm.at) && !scrollLocked){
           scrollLocked = true;
           lockedScrollY = sy;
-          userReleased = false; // User is currently holding
           lockReleaseAttempts = 0;
-          console.log('[FREEZE] HARD LOCK at', fm.title, '- release to continue');
+          console.log('[FREEZE] Scroll locked at', fm.title);
         }
 
         freezesHit.add(fm.at);
@@ -1708,21 +1693,6 @@ setInterval(keepAudioAlive, 500);
 // Mobile touch handlers - resume audio on touch interaction
 window.addEventListener('touchstart', keepAudioAlive, { passive: true });
 window.addEventListener('touchmove', keepAudioAlive, { passive: true });
-
-// Freeze lock input tracking - detect press/hold and release
-window.addEventListener('touchstart', () => { userReleased = false; }, { passive: true });
-window.addEventListener('touchend', () => { userReleased = true; }, { passive: true });
-window.addEventListener('mousedown', () => { userReleased = false; });
-window.addEventListener('mouseup', () => { userReleased = true; });
-window.addEventListener('keydown', () => { userReleased = false; });
-window.addEventListener('keyup', () => { userReleased = true; });
-// Wheel events don't have a clear "release" so we use a timeout
-let wheelTimeout;
-window.addEventListener('wheel', () => {
-  userReleased = false;
-  clearTimeout(wheelTimeout);
-  wheelTimeout = setTimeout(() => { userReleased = true; }, 150);
-}, { passive: true });
 
 // Particles
 const pc=document.getElementById('ptcs');
