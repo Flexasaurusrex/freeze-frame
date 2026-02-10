@@ -327,23 +327,34 @@ async def get_video_info(url: str) -> Optional[dict]:
                 "yt-dlp",
                 "--dump-json",
                 "--no-download",
-                "--no-check-certificates",  # Bypass SSL issues
-                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",  # Spoof user agent
-                "--extractor-args", "youtube:player_client=android",  # Use Android client (more reliable)
+                "--no-check-certificates",
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "--extractor-args", "youtube:player_client=android,web",
+                "--add-header", "Accept-Language:en-US,en;q=0.9",
+                "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "--no-warnings",
                 url,
             ],
-            capture_output=True, text=True, timeout=60  # Increased timeout
+            capture_output=True, text=True, timeout=60
         )
+
+        print(f"[yt-dlp] Return code: {result.returncode}")
+        if result.stderr:
+            print(f"[yt-dlp] Error output: {result.stderr[:500]}")
+
         if result.returncode == 0:
             data = json.loads(result.stdout)
+            print(f"[yt-dlp] Successfully fetched: {data.get('title', 'Unknown')}")
             return {
                 "title": data.get("title", "Unknown"),
                 "channel": data.get("channel", data.get("uploader", "Unknown")),
                 "duration": data.get("duration", 0),
                 "thumbnail": data.get("thumbnail", ""),
             }
+        else:
+            print(f"[yt-dlp] Failed with stderr: {result.stderr[:1000]}")
     except Exception as e:
-        print(f"Error getting video info: {e}")
+        print(f"[yt-dlp] Exception: {e}")
     return None
 
 
