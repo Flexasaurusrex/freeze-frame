@@ -351,8 +351,11 @@ async def get_video_info(url: str) -> Optional[dict]:
                 "duration": data.get("duration", 0),
                 "thumbnail": data.get("thumbnail", ""),
             }
-    except Exception:
-        pass
+        else:
+            # Log yt-dlp errors for debugging
+            logger.error(f"[yt-dlp] Failed with code {result.returncode}: {result.stderr[:500]}")
+    except Exception as e:
+        logger.error(f"[yt-dlp] Exception: {str(e)}")
     return None
 
 
