@@ -343,23 +343,16 @@ async def get_video_info(url: str) -> Optional[dict]:
             capture_output=True, text=True, timeout=60
         )
 
-        logger.info(f"[yt-dlp] Return code: {result.returncode}")
-        if result.stderr:
-            logger.error(f"[yt-dlp] Error output: {result.stderr[:500]}")
-
         if result.returncode == 0:
             data = json.loads(result.stdout)
-            logger.info(f"[yt-dlp] Successfully fetched: {data.get('title', 'Unknown')}")
             return {
                 "title": data.get("title", "Unknown"),
                 "channel": data.get("channel", data.get("uploader", "Unknown")),
                 "duration": data.get("duration", 0),
                 "thumbnail": data.get("thumbnail", ""),
             }
-        else:
-            logger.error(f"[yt-dlp] Failed with stderr: {result.stderr[:1000]}")
-    except Exception as e:
-        logger.error(f"[yt-dlp] Exception: {e}")
+    except Exception:
+        pass
     return None
 
 
