@@ -547,7 +547,7 @@ Look for:
 For each of the 5 moments, provide:
 - sample_index: Which sample frame (0-{SAMPLE_FRAMES_FOR_AI - 1}) - REQUIRED
 - title: A powerful, evocative title (2-5 words, ALL CAPS) — think opening credits or chapter titles
-- description: 2-3 sentences of CINEMATIC COMMENTARY on THIS SPECIFIC FRAME. Write like a film director analyzing a critical shot — describe the visual composition, the emotional weight, the narrative moment. What makes THIS frame unforgettable? What story does it tell in a single instant? Make it VIVID and IMPACTFUL.
+- description: EXACTLY 2-3 SHORT, PUNCHY SENTENCES. Write like a film director giving rapid-fire commentary — capture the visual essence, the emotional punch, the "why this frame matters" in as few words as possible. Every word must EARN its place. Maximum impact, minimum text.
 
 IMPORTANT:
 - Space the 5 selections across the video (don't cluster them)
@@ -644,7 +644,7 @@ Respond ONLY with a JSON array:
                 result.append({
                     "at": max(0.05, min(0.95, position)),
                     "title": str(m.get("title", "FREEZE FRAME"))[:50],
-                    "desc": str(m.get("description", "A frozen moment in time."))[:500],
+                    "desc": str(m.get("description", "A frozen moment in time."))[:300],  # Reduced for brevity
                 })
 
             if len(result) >= 3:
