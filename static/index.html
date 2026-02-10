@@ -733,7 +733,13 @@ function startAudio() {
 
   // If real audio, play the audio element
   if (audioElement) {
-    audioElement.play().catch(e => console.error('Audio play failed:', e));
+    audioElement.play().catch(e => {
+      console.error('Audio play failed:', e);
+      // Retry on mobile after short delay
+      setTimeout(() => {
+        if (audioPlaying) audioElement.play().catch(() => {});
+      }, 100);
+    });
   }
 
   masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
@@ -741,6 +747,16 @@ function startAudio() {
   audioPlaying = true;
   audioMuted = false;
   updateAudioUI();
+}
+
+// Mobile audio keep-alive - resume context if suspended during scroll
+function keepAudioAlive() {
+  if (audioPlaying && audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(e => console.log('Audio resume failed:', e));
+  }
+  if (audioPlaying && audioElement && audioElement.paused) {
+    audioElement.play().catch(() => {});
+  }
 }
 
 function pauseAudio() {
@@ -1516,6 +1532,10 @@ let dirTo;
 
 function onScroll(){
   if(!document.getElementById('expScreen').classList.contains('active'))return;
+
+  // Mobile audio keep-alive - prevent audio from stopping during scroll
+  keepAudioAlive();
+
   const sy=window.scrollY;
 
   // FREEZE POINT SCROLL PAUSE - Creates a natural stop at freeze moments
@@ -1596,6 +1616,13 @@ function onScroll(){
 
 window.addEventListener('scroll',()=>requestAnimationFrame(onScroll));
 setInterval(()=>{document.getElementById('sF').textContent=totalRendered.toLocaleString();document.getElementById('sFz').textContent=freezesHit.size;document.getElementById('sD').textContent=dirChanges;},400);
+
+// Mobile audio recovery - check and resume every 500ms
+setInterval(keepAudioAlive, 500);
+
+// Mobile touch handlers - resume audio on touch interaction
+window.addEventListener('touchstart', keepAudioAlive, { passive: true });
+window.addEventListener('touchmove', keepAudioAlive, { passive: true });
 
 // Particles
 const pc=document.getElementById('ptcs');
