@@ -25,6 +25,7 @@ import shutil
 import glob
 import time
 import math
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -34,6 +35,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import httpx
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════
 # CONFIG
@@ -338,13 +343,13 @@ async def get_video_info(url: str) -> Optional[dict]:
             capture_output=True, text=True, timeout=60
         )
 
-        print(f"[yt-dlp] Return code: {result.returncode}")
+        logger.info(f"[yt-dlp] Return code: {result.returncode}")
         if result.stderr:
-            print(f"[yt-dlp] Error output: {result.stderr[:500]}")
+            logger.error(f"[yt-dlp] Error output: {result.stderr[:500]}")
 
         if result.returncode == 0:
             data = json.loads(result.stdout)
-            print(f"[yt-dlp] Successfully fetched: {data.get('title', 'Unknown')}")
+            logger.info(f"[yt-dlp] Successfully fetched: {data.get('title', 'Unknown')}")
             return {
                 "title": data.get("title", "Unknown"),
                 "channel": data.get("channel", data.get("uploader", "Unknown")),
@@ -352,9 +357,9 @@ async def get_video_info(url: str) -> Optional[dict]:
                 "thumbnail": data.get("thumbnail", ""),
             }
         else:
-            print(f"[yt-dlp] Failed with stderr: {result.stderr[:1000]}")
+            logger.error(f"[yt-dlp] Failed with stderr: {result.stderr[:1000]}")
     except Exception as e:
-        print(f"[yt-dlp] Exception: {e}")
+        logger.error(f"[yt-dlp] Exception: {e}")
     return None
 
 
@@ -396,7 +401,7 @@ async def extract_audio(video_path: str, opus_path: str, mp3_path: str):
         capture_output=True, text=True, timeout=120
     )
     if result.returncode != 0:
-        print(f"MP3 extraction warning: {result.stderr[:200]}")
+        logger.warning(f"MP3 extraction warning: {result.stderr[:200]}")
 
     # Also try Opus for smaller size
     try:
@@ -616,7 +621,7 @@ Respond ONLY with a JSON array:
             )
 
             if response.status_code != 200:
-                print(f"Claude API error: {response.status_code} {response.text[:300]}")
+                logger.error(f"Claude API error: {response.status_code} {response.text[:300]}")
                 return default_freeze_moments()
 
             data = response.json()
@@ -643,7 +648,7 @@ Respond ONLY with a JSON array:
 
                 # Ensure sample_idx is valid
                 if sample_idx < 0 or sample_idx >= len(sample_indices):
-                    print(f"Invalid sample_index {sample_idx}, skipping")
+                    logger.warning(f"Invalid sample_index {sample_idx}, skipping")
                     continue
 
                 # Get the actual frame index from our sample
@@ -662,7 +667,7 @@ Respond ONLY with a JSON array:
                 return result
 
     except Exception as e:
-        print(f"Claude Vision analysis error: {e}")
+        logger.error(f"Claude Vision analysis error: {e}")
 
     return default_freeze_moments()
 
