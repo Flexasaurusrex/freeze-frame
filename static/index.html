@@ -1047,21 +1047,28 @@ function drawVideoFrame(n) {
 // CROSSFADE
 // ════════════════════════════════════════
 function drawCompositeFrame(gf) {
-  // If real video, just draw the frame directly
-  if (isRealVideo && loadedFrames.length > 0) {
-    const frameIdx = Math.min(gf, loadedFrames.length - 1);
-    drawRealFrame(frameIdx);
-    return;
-  }
-
-  // Otherwise, use synthetic demo graphics
   const cs = INTRO_FRAMES - CROSSFADE_FRAMES;
-  if(gf < cs) { drawIntroFrame(gf); }
+
+  // INTRO PHASE (frames 0-69): REWIND geometric animation for ALL videos
+  if(gf < cs) {
+    drawIntroFrame(gf);
+  }
+  // CROSSFADE PHASE (frames 70-89): Intro → Video transition
   else if(gf < INTRO_FRAMES) {
     const ft = (gf - cs) / CROSSFADE_FRAMES;
     drawIntroFrame(gf);
     const id = ctx.getImageData(0,0,W,H);
-    drawVideoFrame(Math.floor(ft*15));
+
+    // Crossfade to real video or synthetic demo
+    if (isRealVideo && loadedFrames.length > 0) {
+      const videoFrameIdx = Math.floor(ft * 15); // First ~15 frames of real video
+      if (loadedFrames[videoFrameIdx]) {
+        ctx.drawImage(loadedFrames[videoFrameIdx], 0, 0, W, H);
+      }
+    } else {
+      drawVideoFrame(Math.floor(ft*15));
+    }
+
     const vd = ctx.getImageData(0,0,W,H);
     const e = ft*ft*(3-2*ft);
     const out = ctx.createImageData(W,H);
@@ -1073,7 +1080,16 @@ function drawCompositeFrame(gf) {
     }
     ctx.putImageData(out,0,0);
     if(Math.abs(ft-0.5)<0.05){ctx.fillStyle=`rgba(255,215,0,${0.15*(1-Math.abs(ft-0.5)*20)})`;ctx.fillRect(0,0,W,H);}
-  } else { drawVideoFrame(gf - INTRO_FRAMES); }
+  }
+  // VIDEO PHASE (frames 90+): Main content
+  else {
+    if (isRealVideo && loadedFrames.length > 0) {
+      const videoFrameIdx = gf - INTRO_FRAMES;
+      drawRealFrame(Math.min(videoFrameIdx, loadedFrames.length - 1));
+    } else {
+      drawVideoFrame(gf - INTRO_FRAMES);
+    }
+  }
 }
 
 // ════════════════════════════════════════
