@@ -1061,9 +1061,11 @@ function drawCompositeFrame(gf) {
 
     // Crossfade to real video or synthetic demo
     if (isRealVideo && loadedFrames.length > 0) {
-      const videoFrameIdx = Math.floor(ft * 15); // First ~15 frames of real video
-      if (loadedFrames[videoFrameIdx]) {
-        ctx.drawImage(loadedFrames[videoFrameIdx], 0, 0, W, H);
+      // Map crossfade frames (0-15) to backend frames proportionally
+      const crossfadeFrameIdx = Math.floor(ft * 15);
+      const backendFrameIdx = Math.floor(crossfadeFrameIdx * loadedFrames.length / (TOTAL_FRAMES - INTRO_FRAMES));
+      if (loadedFrames[backendFrameIdx]) {
+        ctx.drawImage(loadedFrames[backendFrameIdx], 0, 0, W, H);
       }
     } else {
       drawVideoFrame(Math.floor(ft*15));
@@ -1084,8 +1086,10 @@ function drawCompositeFrame(gf) {
   // VIDEO PHASE (frames 90+): Main content
   else {
     if (isRealVideo && loadedFrames.length > 0) {
-      const videoFrameIdx = gf - INTRO_FRAMES;
-      drawRealFrame(Math.min(videoFrameIdx, loadedFrames.length - 1));
+      const videoFrameIdx = gf - INTRO_FRAMES;  // 0-209 (210 frames of video portion)
+      // Map 210 frontend frames to 300 backend frames proportionally
+      const backendFrameIdx = Math.floor(videoFrameIdx * loadedFrames.length / (TOTAL_FRAMES - INTRO_FRAMES));
+      drawRealFrame(Math.min(backendFrameIdx, loadedFrames.length - 1));
     } else {
       drawVideoFrame(gf - INTRO_FRAMES);
     }
@@ -1341,8 +1345,24 @@ async function startGen(){
     document.getElementById('procScreen').classList.remove('active');
 
     // Update freeze moments from AI
+    // IMPORTANT: Adjust positions to account for intro frames
+    // Backend gives positions 0-1 for 300 video frames
+    // Frontend has 90 intro + 210 video = 300 total
+    // So backend position 0.32 (frame 96) should map to frontend frame 186 (90 + 96)
+    // Which is position 0.62 in total experience (186/300)
+    const introRatio = INTRO_FRAMES / TOTAL_FRAMES;  // 0.3
+    const videoRatio = 1 - introRatio;  // 0.7
+
     FREEZE_MOMENTS.length = 0;
-    manifest.freeze_moments.forEach(fm => FREEZE_MOMENTS.push(fm));
+    manifest.freeze_moments.forEach(fm => {
+      // Don't normalize - just offset by intro ratio
+      // Backend position 0.32 → Frontend position 0.3 + (0.32 * 0.7) = 0.524
+      FREEZE_MOMENTS.push({
+        at: fm.at,  // Keep original for comparison with vProg
+        title: fm.title,
+        desc: fm.desc
+      });
+    });
 
     // Show share button
     document.getElementById('shareBtn').style.display = 'block';
